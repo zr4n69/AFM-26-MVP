@@ -76,30 +76,12 @@ export function ScreenDraft({ onNav }) {
   }, [isRunning, mode, picks, teamId, actions, currentPickIdx]);
 
   function userDraftPlayer(prospectId) {
-    const pick = picks.find(p => !p.prospectId && p.currentTeamId === teamId);
-    if (!pick) return;
+    try {
+      const pick = picks.find(p => !p.prospectId && p.currentTeamId === teamId);
+      if (!pick) return;
 
-    const result = actions.draftPick(pick.id, prospectId);
-    setDraftLog(prev => [...prev, {
-      pickId: pick.id,
-      round: pick.round,
-      overall: pick.overallPick,
-      teamId: teamId,
-      prospectName: `${result.prospect.firstName} ${result.prospect.lastName}`,
-      position: result.prospect.position,
-      rating: result.player.overall,
-      isUser: true,
-    }]);
-
-    // Continue CPU picks
-    setIsRunning(true);
-  }
-
-  function autoPick() {
-    const pick = picks.find(p => !p.prospectId && p.currentTeamId === teamId);
-    if (!pick) return;
-    const result = actions.runCpuPick(pick.id);
-    if (result) {
+      const result = actions.draftPick(pick.id, prospectId);
+      if (!result) { setIsRunning(true); return; }
       setDraftLog(prev => [...prev, {
         pickId: pick.id,
         round: pick.round,
@@ -107,11 +89,40 @@ export function ScreenDraft({ onNav }) {
         teamId: teamId,
         prospectName: `${result.prospect.firstName} ${result.prospect.lastName}`,
         position: result.prospect.position,
-        rating: result.player.overall,
+        rating: result.player?.overall || 0,
         isUser: true,
       }]);
+
+      // Continue CPU picks
+      setIsRunning(true);
+    } catch (e) {
+      console.error('[userDraftPlayer]', e);
+      setIsRunning(true);
     }
-    setIsRunning(true);
+  }
+
+  function autoPick() {
+    try {
+      const pick = picks.find(p => !p.prospectId && p.currentTeamId === teamId);
+      if (!pick) return;
+      const result = actions.runCpuPick(pick.id);
+      if (result) {
+        setDraftLog(prev => [...prev, {
+          pickId: pick.id,
+          round: pick.round,
+          overall: pick.overallPick,
+          teamId: teamId,
+          prospectName: `${result.prospect.firstName} ${result.prospect.lastName}`,
+          position: result.prospect.position,
+          rating: result.player?.overall || 0,
+          isUser: true,
+        }]);
+      }
+      setIsRunning(true);
+    } catch (e) {
+      console.error('[autoPick]', e);
+      setIsRunning(true);
+    }
   }
 
   const findTeam = (id) => teams.find(t => t.id === id);

@@ -59,8 +59,12 @@ export function ScreenHallOfFame({ onNav }) {
 
   const handleCastVotes = () => {
     if (myVotes.length === 0) return;
-    actions.castHofVotes(userTeam.id, myVotes);
-    setSubmitted(true);
+    try {
+      actions.castHofVotes(userTeam.id, myVotes);
+      setSubmitted(true);
+    } catch (e) {
+      console.error('[castHofVotes]', e);
+    }
   };
 
   const hasEligible = eligible.length > 0;

@@ -36,14 +36,19 @@ export function ScreenTraining({ onNav }) {
 
   function runSession() {
     if (!windowInfo.open || picked.length === 0) return;
-    const playerPlans = picked.map(id => ({
-      playerId: id,
-      intensity: intensity[id] || 'standard',
-    }));
-    const options = { type: windowInfo.type === 'camp' ? 'camp' : 'regularSeason' };
-    const session = actions.scheduleTraining(userTeam.id, playerPlans, options);
-    const res = actions.resolveTraining(session.id);
-    setResults(res);
+    try {
+      const playerPlans = picked.map(id => ({
+        playerId: id,
+        intensity: intensity[id] || 'standard',
+      }));
+      const options = { type: windowInfo.type === 'camp' ? 'camp' : 'regularSeason' };
+      const session = actions.scheduleTraining(userTeam.id, playerPlans, options);
+      const res = actions.resolveTraining(session.id);
+      setResults(res || []);
+    } catch (e) {
+      console.error('[runSession]', e);
+      alert(e.message || 'Training failed');
+    }
   }
 
   // Training windows status

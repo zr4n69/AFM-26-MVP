@@ -52,12 +52,16 @@ export function ScreenStrategy() {
   };
 
   const apply = () => {
-    actions.updateStrategy(team._engine.id, {
-      offensiveSystem: off,
-      defensiveSystem: def,
-      tendencies,
-    });
-    setDirty(false);
+    try {
+      actions.updateStrategy(team._engine?.id, {
+        offensiveSystem: off,
+        defensiveSystem: def,
+        tendencies,
+      });
+      setDirty(false);
+    } catch (e) {
+      console.error('[updateStrategy]', e);
+    }
   };
 
   const reset = () => {

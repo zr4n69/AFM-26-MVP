@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, OvrPill, formatM } from '../components/Chrome.jsx';
+import { Topbar, OvrPill, Avatar, formatM } from '../components/Chrome.jsx';
 import { bridgeFreeAgent } from '../data/bridge.js';
 import { estimateMarketSalary } from '@engine/simulation/free-agency.js';
 
@@ -16,6 +16,8 @@ export function ScreenFreeAgency({ onNav }) {
   const [offerSalary, setOfferSalary] = useState(3);
   const [offerYears, setOfferYears] = useState(2);
   const [lastResult, setLastResult] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [showRelease, setShowRelease] = useState(false);
 
   const bridgedFAs = (freeAgents || [])
     .map(p => {
@@ -27,20 +29,35 @@ export function ScreenFreeAgency({ onNav }) {
 
   const filtered = bridgedFAs.filter(p => {
     if (filter === 'All') return true;
-    if (filter === 'Offense') return OFF_POS.includes(p._engine.position);
-    if (filter === 'Defense') return DEF_POS.includes(p._engine.position);
+    if (filter === 'Offense') return OFF_POS.includes(p._engine?.position);
+    if (filter === 'Defense') return DEF_POS.includes(p._engine?.position);
     return false; // ST
   });
 
-  const rosterSpots = 55 - (userTeam.roster?.length || 0);
+  const rosterCount = userTeam.roster?.length || 0;
+  const rosterSpots = 55 - rosterCount;
+  const rosterFull = rosterSpots <= 0;
 
   function submitOffer() {
     if (!offerTarget) return;
-    // Make offer and resolve immediately
-    actions.makeOffer(teamId, offerTarget.id, offerSalary * 1_000_000, offerYears);
-    const result = actions.resolveOffers();
-    setLastResult(result);
-    setOfferTarget(null);
+    setErrorMsg(null);
+    try {
+      actions.makeOffer(teamId, offerTarget.id, offerSalary * 1_000_000, offerYears);
+      const result = actions.resolveOffers();
+      setLastResult(result);
+      setOfferTarget(null);
+    } catch (e) {
+      setErrorMsg(e.message || 'Failed to make offer');
+    }
+  }
+
+  function releasePlayer(playerId) {
+    try {
+      actions.releasePlayer(teamId, playerId);
+      setErrorMsg(null);
+    } catch (e) {
+      setErrorMsg(e.message || 'Failed to release player');
+    }
   }
 
   return (
@@ -54,10 +71,10 @@ export function ScreenFreeAgency({ onNav }) {
             <div className="value">{formatM(userTeam.capSpace)}</div>
             <div className="delta">Available to spend</div>
           </div>
-          <div className="stat-tile">
+          <div className="stat-tile" style={rosterFull ? { borderColor: 'var(--neg)' } : {}}>
             <div className="label">Roster Spots</div>
-            <div className="value">{rosterSpots}<span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
-            <div className="delta">Active limit</div>
+            <div className="value" style={rosterFull ? { color: 'var(--neg)' } : {}}>{rosterSpots}<span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
+            <div className={`delta ${rosterFull ? 'neg' : ''}`}>{rosterFull ? 'Release a player first!' : 'Active limit'}</div>
           </div>
           <div className="stat-tile">
             <div className="label">Free Agents</div>
@@ -70,6 +87,59 @@ export function ScreenFreeAgency({ onNav }) {
             <div className="delta">Positions to fill</div>
           </div>
         </div>
+
+        {/* Error message */}
+        {errorMsg && (
+          <div className="card" style={{ marginBottom: 14, borderColor: 'var(--neg)' }}>
+            <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="chip" style={{ background: 'var(--neg)', color: 'white', fontSize: 10 }}>ERROR</span>
+              <span style={{ flex: 1 }}>{errorMsg}</span>
+              <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setErrorMsg(null)}>Dismiss</button>
+            </div>
+          </div>
+        )}
+
+        {/* Roster full warning */}
+        {rosterFull && (
+          <div className="card" style={{ marginBottom: 14, borderColor: 'var(--neg)' }}>
+            <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 8, height: 8, borderRadius: 99, background: 'var(--neg)' }} />
+              <div style={{ flex: 1 }}>
+                <strong>Roster is full ({rosterCount}/55).</strong>
+                <span className="muted" style={{ marginLeft: 8 }}>You must release a player before signing a free agent.</span>
+              </div>
+              <button className="btn" style={{ whiteSpace: 'nowrap' }} onClick={() => setShowRelease(!showRelease)}>
+                {showRelease ? 'Hide Roster' : 'Release a Player'}
+              </button>
+            </div>
+            {showRelease && (
+              <div className="card-b tight" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                <table className="tbl">
+                  <thead><tr><th>Player</th><th>Pos</th><th className="num">OVR</th><th className="num">Cap Hit</th><th></th></tr></thead>
+                  <tbody>
+                    {[...userTeam.roster].sort((a, b) => a.ovr - b.ovr).map(p => (
+                      <tr key={p.id}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Avatar player={p} team={userTeam} size={24} />
+                            <strong>{p.name}</strong>
+                          </div>
+                        </td>
+                        <td className="mono">{p.pos}</td>
+                        <td className="num"><OvrPill ovr={p.ovr} /></td>
+                        <td className="num mono">{formatM(p.cap)}</td>
+                        <td>
+                          <button className="btn" style={{ padding: '3px 10px', fontSize: 11, color: 'var(--neg)', borderColor: 'var(--neg)' }}
+                            onClick={() => releasePlayer(p.id)}>Release</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Last resolve result — per-player acceptance/rejection */}
         {lastResult && (
@@ -142,8 +212,9 @@ export function ScreenFreeAgency({ onNav }) {
                       <td className="muted" style={{ fontSize: 12 }}>{p.traits.slice(0, 2).join(', ') || '—'}</td>
                       <td>
                         <button className="btn" style={{ padding: '4px 12px', fontSize: 11 }}
-                          onClick={() => { setOfferTarget(p); setOfferSalary(Math.round(p.marketValue * 10) / 10); setOfferYears(Math.min(4, Math.max(1, 5 - Math.floor(p.age / 8)))); }}>
-                          Offer
+                          disabled={rosterFull}
+                          onClick={() => { setErrorMsg(null); setOfferTarget(p); setOfferSalary(Math.round(p.marketValue * 10) / 10); setOfferYears(Math.min(4, Math.max(1, 5 - Math.floor(p.age / 8)))); }}>
+                          {rosterFull ? 'Full' : 'Offer'}
                         </button>
                       </td>
                     </tr>
