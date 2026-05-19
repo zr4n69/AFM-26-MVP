@@ -1,0 +1,345 @@
+/* ── Main Menu ── */
+
+.main-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+
+.menu-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.menu-header h1 {
+  font-size: 42px;
+  letter-spacing: -1.2px;
+  margin: 0 0 8px;
+}
+
+.menu-header .subtitle {
+  color: var(--text);
+  font-size: 16px;
+}
+
+/* ── Save Slots ── */
+
+.save-slots {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  width: 100%;
+  max-width: 860px;
+}
+
+@media (max-width: 720px) {
+  .save-slots {
+    grid-template-columns: 1fr;
+    max-width: 360px;
+  }
+}
+
+.save-slot {
+  position: relative;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  background: var(--bg);
+}
+
+.save-slot.occupied {
+  border-color: var(--accent-border);
+}
+
+.save-slot:hover {
+  box-shadow: var(--shadow);
+}
+
+.slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.slot-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text);
+}
+
+.slot-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.team-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.record {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.slot-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.save-date {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.slot-empty-msg {
+  font-size: 16px;
+  color: var(--text);
+  opacity: 0.5;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+}
+
+/* ── Buttons ── */
+
+.btn-primary {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+  transition: opacity 0.15s;
+}
+
+.btn-primary:hover {
+  opacity: 0.85;
+}
+
+.btn-secondary {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-h);
+  transition: background 0.15s;
+}
+
+.btn-secondary:hover {
+  background: var(--accent-bg);
+}
+
+.btn-danger {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: #e53e3e;
+  color: #fff;
+  transition: opacity 0.15s;
+}
+
+.btn-danger:hover {
+  opacity: 0.85;
+}
+
+.btn-delete {
+  font-size: 20px;
+  line-height: 1;
+  background: none;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btn-delete:hover {
+  color: #e53e3e;
+  background: rgba(229, 62, 62, 0.1);
+}
+
+/* ── Confirm Overlay ── */
+
+.confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 2;
+}
+
+.confirm-overlay p {
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Game Shell ── */
+
+.game-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.game-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.team-badge {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.season-info {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.save-indicator {
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.btn-topbar {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-h);
+  transition: background 0.15s;
+}
+
+.btn-topbar:hover {
+  background: var(--accent-bg);
+}
+
+/* ── Game Content ── */
+
+.game-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.placeholder-content {
+  text-align: center;
+}
+
+.record-display {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 8px 0 16px;
+}
+
+/* ── Dialog ── */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dialog {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 32px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: var(--shadow);
+}
+
+.dialog h3 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  color: var(--text-h);
+}
+
+.dialog p {
+  margin: 0 0 20px;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

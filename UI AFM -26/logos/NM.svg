@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="92" fill="#0E0E10"></circle>
+  <circle cx="100" cy="100" r="92" fill="none" stroke="#E8C547" stroke-width="6"></circle>
+  
+  <g transform="translate(100 100)">
+    <path d="M0 -64 L8 -52 L-2 -38 L-12 -50 Z" fill="#0E0E10" opacity="0.001"></path>
+    
+    <path d="M0 -54 Q26 -10 26 18 Q26 50 0 54 Q-26 50 -26 18 Q-26 -10 0 -54 Z" fill="#0E0E10" stroke="#E8C547" stroke-width="3"></path>
+    
+    <path d="M-12 -10 Q-18 8 -14 28 Q-22 12 -18 -8 Q-16 -22 -12 -10 Z" fill="#E8C547" opacity="0.5"></path>
+    
+    <circle cx="-44" cy="-12" r="4" fill="#C0392B"></circle>
+    <circle cx="44" cy="-12" r="4" fill="#C0392B"></circle>
+    <circle cx="-50" cy="14" r="3" fill="#E8C547"></circle>
+    <circle cx="50" cy="14" r="3" fill="#E8C547"></circle>
+    <circle cx="-32" cy="-44" r="2.5" fill="#E8C547"></circle>
+    <circle cx="32" cy="-44" r="2.5" fill="#E8C547"></circle>
+    
+    <path d="M-58 32 Q-50 40 -52 50 Q-58 44 -62 38 Z" fill="#0E0E10" stroke="#E8C547" stroke-width="2"></path>
+    <path d="M58 32 Q50 40 52 50 Q58 44 62 38 Z" fill="#0E0E10" stroke="#E8C547" stroke-width="2"></path>
+  </g>
+</svg>

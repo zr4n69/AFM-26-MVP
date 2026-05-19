@@ -1,0 +1,13 @@
+{
+  "name": "american-football-gm-sim",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fictional American football GM simulation MVP data layer.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
