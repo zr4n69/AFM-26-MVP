@@ -230,6 +230,8 @@ export function executeCpuAutoDraft(league, options = {}) {
     if (!prospect) continue;
     const udRng = createRng(`udfa-${prospect.id}`);
     const overall = Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2);
+    // Skip low-OVR undrafted prospects — they retire instead of bloating FA pool
+    if (overall < 62) continue;
     const player = {
       id: prospect.id,
       firstName: prospect.firstName,
@@ -393,6 +395,8 @@ function generateStreetFreeAgent(league, position, rng) {
 }
 
 function signFreeAgent(team, league, player, rng) {
+  // Hard roster limit guard
+  if (team.roster.length >= LEAGUE_RULES.rosterLimit) return;
   const salary = estimateSalary(player);
   const years = rng.int(1, 3);
   player.contract = createContractFromSalary(salary, years);
@@ -403,14 +407,14 @@ function signFreeAgent(team, league, player, rng) {
 }
 
 function estimateSalary(player) {
-  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.15 : 1;
+  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.20 : 1;
   const base =
-    player.overall >= 88 ? 12_000_000 :
-    player.overall >= 82 ? 7_000_000 :
-    player.overall >= 76 ? 4_000_000 :
-    player.overall >= 70 ? 2_500_000 :
-    player.overall >= 62 ? 1_200_000 :
-    800_000;
+    player.overall >= 88 ? 28_000_000 :
+    player.overall >= 82 ? 18_000_000 :
+    player.overall >= 76 ? 10_000_000 :
+    player.overall >= 70 ? 6_000_000 :
+    player.overall >= 62 ? 3_000_000 :
+    2_000_000;
   return Math.round(base * premium);
 }
 

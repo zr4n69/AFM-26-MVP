@@ -131,12 +131,16 @@ export function computeAttractiveness(offer, player, league, prestigeWeight, rng
   const moraleScore = ((team.morale?.score ?? 50) - 50) / 100; // -0.4 to +0.45
   const noise = (rng.next() - 0.5) * 0.12;
 
+  // Competitive balance: winning teams are less attractive (player seeks role / money elsewhere)
+  const balancePenalty = competitiveBalancePenalty(team, league);
+
   return (
     contractScore * 0.35 +
-    prestigeScore * prestigeWeight * 0.25 +
-    performanceScore * 0.20 +
+    prestigeScore * prestigeWeight * 0.20 +
+    performanceScore * 0.15 +
     needScore * 0.10 +
     moraleScore * 0.10 +
+    balancePenalty * 0.10 +
     noise
   );
 }
@@ -164,10 +168,11 @@ function teamWantsPlayer(team, player, rng) {
   const target = ROSTER_TEMPLATE[player.position] ?? 1;
 
   if (posCount < Math.ceil(target * 0.6)) return rng.next() < 0.95;
-  if (posCount < target && player.overall >= 70) return rng.next() < 0.60;
-  if (player.overall >= 82) return rng.next() < 0.35;
-  if (player.overall >= 75 && posCount < target) return rng.next() < 0.30;
-  return rng.next() < 0.05;
+  if (posCount < target && player.overall >= 70) return rng.next() < 0.70;
+  if (player.overall >= 82) return rng.next() < 0.45;
+  if (player.overall >= 75 && posCount < target) return rng.next() < 0.40;
+  if (posCount < target) return rng.next() < 0.25;  // need-based interest even for avg players
+  return rng.next() < 0.12;  // raised from 5% to 12%
 }
 
 function cpuOfferSalary(player, team, rng) {
@@ -179,7 +184,7 @@ function cpuOfferSalary(player, team, rng) {
 }
 
 export function estimateMarketSalary(player) {
-  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.15 : 1;
+  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.20 : 1;
   const ageFactor =
     player.age >= 34 ? 0.65 :
     player.age >= 31 ? 0.85 :
@@ -187,12 +192,12 @@ export function estimateMarketSalary(player) {
     1.05;
   const injuryFactor = (player.injuryHistory?.length ?? 0) >= 3 ? 0.85 : 1.0;
   const base =
-    player.overall >= 88 ? 12_000_000 :
-    player.overall >= 82 ? 7_000_000 :
-    player.overall >= 76 ? 4_000_000 :
-    player.overall >= 70 ? 2_500_000 :
-    player.overall >= 62 ? 1_200_000 :
-    800_000;
+    player.overall >= 88 ? 28_000_000 :
+    player.overall >= 82 ? 18_000_000 :
+    player.overall >= 76 ? 10_000_000 :
+    player.overall >= 70 ? 6_000_000 :
+    player.overall >= 62 ? 3_000_000 :
+    2_000_000;
   return Math.round(base * premium * ageFactor * injuryFactor);
 }
 
@@ -211,6 +216,21 @@ function recentPerformance(team, league) {
   const winPct = standing.winPct ?? 0;
   const wasChampion = lastSeason.championTeamId === team.id ? 0.15 : 0;
   return Math.min(1.0, winPct + wasChampion);
+}
+
+function competitiveBalancePenalty(team, league) {
+  // Teams with recent success get a penalty (less attractive to FAs seeking opportunity)
+  if (league.seasonHistory.length === 0) return 0;
+  let totalWinPct = 0;
+  const lookback = Math.min(2, league.seasonHistory.length);
+  for (let i = league.seasonHistory.length - lookback; i < league.seasonHistory.length; i++) {
+    const standing = league.seasonHistory[i].standings.find(s => s.teamId === team.id);
+    totalWinPct += standing?.winPct ?? 0.5;
+  }
+  const avgWinPct = totalWinPct / lookback;
+  // Penalty scales: 0.500 → 0, 0.700 → -0.4, 0.900 → -0.8
+  if (avgWinPct <= 0.5) return 0;
+  return -(avgWinPct - 0.5) * 2;
 }
 
 function positionalNeed(team, position) {
@@ -235,6 +255,8 @@ function resolveDecision(scoredOffers, rng) {
 
 function executeSigning(league, offer, player) {
   const team = league.teams.find((t) => t.id === offer.teamId);
+  // Hard roster limit guard
+  if (team.roster.length >= LEAGUE_RULES.rosterLimit) return;
   player.contract = createContractFromSalary(offer.salary, offer.years);
   player.freeAgentSeasonsUnsigned = 0;
   team.roster.push(player);

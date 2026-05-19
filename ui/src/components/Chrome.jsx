@@ -38,11 +38,10 @@ export function formatM(v) {
 }
 
 function ovrClass(o) {
-  if (o >= 90) return 'tier-90';
-  if (o >= 80) return 'tier-80';
-  if (o >= 70) return 'tier-70';
-  if (o >= 60) return 'tier-60';
-  if (o >= 50) return 'tier-50';
+  if (o >= 90) return 'elite';
+  if (o >= 85) return 'gold';
+  if (o >= 78) return 'silver';
+  if (o >= 70) return 'bronze';
   return '';
 }
 
@@ -156,8 +155,12 @@ export function TraitBadge({ trait }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600,
-      background: 'var(--bg-3)', color: 'var(--ink-2)', whiteSpace: 'nowrap',
+      padding: '2px 8px', fontSize: 11, fontWeight: 700,
+      fontFamily: 'var(--font-stamp)',
+      letterSpacing: '0.08em', textTransform: 'uppercase',
+      background: 'var(--turf-2)', color: 'var(--ink-2)',
+      border: '1px solid var(--line-1)',
+      whiteSpace: 'nowrap',
     }}>
       <span style={{ fontSize: 13 }}>{icon}</span> {label}
     </span>
@@ -272,7 +275,7 @@ export function Sidebar({ active, onNav, team, season, week, lastSaved, onSave, 
       <div className="footer">
         {onSave && onExit ? (
           <>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={onSave}>Save</button>
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={onExit}>Exit</button>
             </div>
@@ -282,10 +285,10 @@ export function Sidebar({ active, onNav, team, season, week, lastSaved, onSave, 
             </div>
           </>
         ) : (
-          <>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Autosaved · just now</span>
             <span>v0.1</span>
-          </>
+          </div>
         )}
       </div>
     </aside>

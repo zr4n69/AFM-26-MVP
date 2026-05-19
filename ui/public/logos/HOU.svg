@@ -1,34 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <circle cx="100" cy="100" r="92" fill="#0B1F3A"></circle>
-  <circle cx="100" cy="100" r="92" fill="none" stroke="#A8A8AC" stroke-width="6"></circle>
   
-  <g fill="#F4F4F4">
-    <circle cx="36" cy="50" r="1.4"></circle>
-    <circle cx="160" cy="46" r="1.6"></circle>
-    <circle cx="50" cy="156" r="1.2"></circle>
-    <circle cx="158" cy="158" r="1.4"></circle>
-    <circle cx="22" cy="104" r="1.1"></circle>
-  </g>
+  <path d="M28 40 L172 40 L188 100 L172 160 L28 160 L12 100 Z" fill="#0B1F3A" stroke="#0A0A0E" stroke-width="6"></path>
   
-  <g transform="translate(100 104)">
-    
-    <path d="M-58 56 Q-58 38 -40 32 L40 32 Q58 38 58 56 Z" fill="#A8A8AC" stroke="#0B1F3A" stroke-width="2.5"></path>
-    
-    <ellipse cx="0" cy="0" rx="48" ry="50" fill="#F4F4F4" stroke="#0B1F3A" stroke-width="3"></ellipse>
-    
-    <path d="M-38 -8 Q-38 -34 0 -34 Q38 -34 38 -8 Q38 18 0 18 Q-38 18 -38 -8 Z" fill="#0B1F3A" stroke="#0B1F3A" stroke-width="2"></path>
-    
-    <path d="M-32 -10 Q-32 -28 0 -28 Q32 -28 32 -10 Q32 14 0 14 Q-32 14 -32 -10 Z" fill="#7DC8E8" opacity="0.4"></path>
-    <path d="M-26 -18 Q-14 -24 -2 -22" stroke="#F4F4F4" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"></path>
-    <path d="M14 -20 Q22 -22 28 -16" stroke="#F4F4F4" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.7"></path>
-    
-    <line x1="-30" y1="-44" x2="-36" y2="-58" stroke="#A8A8AC" stroke-width="2.5"></line>
-    <circle cx="-36" cy="-58" r="3" fill="#E8631A"></circle>
-    
-    <rect x="-50" y="-4" width="6" height="10" fill="#A8A8AC" stroke="#0B1F3A" stroke-width="1.5"></rect>
-    <rect x="44" y="-4" width="6" height="10" fill="#A8A8AC" stroke="#0B1F3A" stroke-width="1.5"></rect>
-    
-    <rect x="-10" y="40" width="20" height="14" fill="#F4F4F4" stroke="#0B1F3A" stroke-width="1.5"></rect>
-    <text x="0" y="51" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="10" fill="#0B1F3A">HOU</text>
-  </g>
+  <path d="M12 110 L188 60 L188 92 L12 142 Z" fill="#A8A8AC" opacity="0.22"></path>
+  
+  <g opacity="0.18"><path d="M100 24 Q124 60 124 110 L124 150 L76 150 L76 110 Q76 60 100 24 Z" fill="#F4F4F4"></path><path d="M76 130 L52 168 L76 158 Z M124 130 L148 168 L124 158 Z" fill="#F4F4F4"></path></g>
+  
+  <path d="M40 158 L100 142 L160 158 L160 168 L100 152 L40 168 Z" fill="#A8A8AC" opacity="0.85"></path>
+  
+  <text x="100" y="140" text-anchor="middle" font-family="Anton, Impact, &#39;Archivo Black&#39;, sans-serif" font-weight="400" font-size="132" fill="#F4F5EE" stroke="#0A0A0E" stroke-width="3" paint-order="stroke fill" letter-spacing="2">HO</text>
 </svg>

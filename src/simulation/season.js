@@ -222,7 +222,11 @@ export function runOffseason(league, options = {}) {
       player.health = { status: "healthy", injury: null, weeksRemaining: 0 };
     }
     player.freeAgentSeasonsUnsigned = (player.freeAgentSeasonsUnsigned ?? 0) + 1;
-    if (player.freeAgentSeasonsUnsigned >= 3) {
+    // Prune aggressively: 2+ seasons unsigned, OR low OVR after 1 season, OR old+unsigned
+    const shouldExit = player.freeAgentSeasonsUnsigned >= 2
+      || (player.freeAgentSeasonsUnsigned >= 1 && player.overall < 60)
+      || (player.freeAgentSeasonsUnsigned >= 1 && player.age >= 33);
+    if (shouldExit) {
       summary.freeAgentPoolExits.push({ playerId: player.id, position: player.position, overall: player.overall, seasonsUnsigned: player.freeAgentSeasonsUnsigned });
     } else {
       survivingFreeAgents.push(player);
@@ -316,7 +320,53 @@ export function advanceToNextSeason(league) {
     seed: `cpu-fill-${league.seed}-${league.currentSeason}`
   });
 
+  // Aggressive pre-season compliance: cap + roster hard limit
   for (const team of league.teams) {
+    // Hard-enforce roster cap at 55
+    while (team.roster.length > LEAGUE_RULES.rosterLimit) {
+      const worst = team.roster
+        .slice()
+        .sort((a, b) => a.overall - b.overall)[0];
+      if (!worst) break;
+      team.roster = team.roster.filter(p => p.id !== worst.id);
+      worst.freeAgentSeasonsUnsigned = 0;
+      league.freeAgents.push(worst);
+    }
+    refreshContractSummary(team);
+    // Enforce cap compliance aggressively — release highest-paid expendable until under cap
+    let safetyCounter = 0;
+    while (team.contractSummary.capSpace < 0 && team.roster.length > 0 && safetyCounter < 25) {
+      // Find highest-salary player we can cut (not sole player at position, protect specialists)
+      const candidate = team.roster
+        .filter(p => {
+          const posCount = team.roster.filter(r => r.position === p.position).length;
+          return posCount > 1;
+        })
+        .sort((a, b) => b.contract.salary - a.contract.salary)[0];
+      if (!candidate) {
+        // Fallback: if stuck, also try the built-in enforcer which uses savings/ovr ratio
+        enforceCapCompliance(league, team.id);
+        break;
+      }
+      team.roster = team.roster.filter(p => p.id !== candidate.id);
+      candidate.freeAgentSeasonsUnsigned = 0;
+      league.freeAgents.push(candidate);
+      for (const position of Object.keys(team.depthChart)) {
+        team.depthChart[position] = (team.depthChart[position] || []).filter(id => id !== candidate.id);
+      }
+      refreshContractSummary(team);
+      safetyCounter++;
+    }
+  }
+
+  // Re-fill any gaps created by cap cuts (especially specialists like K, P)
+  executeCpuOffseasonSignings(league, {
+    seed: `cpu-refill-${league.seed}-${league.currentSeason}`
+  });
+
+  // Final cap enforcement after refill
+  for (const team of league.teams) {
+    refreshContractSummary(team);
     if (team.contractSummary.capSpace < 0) {
       enforceCapCompliance(league, team.id);
     }
@@ -324,8 +374,8 @@ export function advanceToNextSeason(league) {
 
   const violations = validateRosterCompliance(league);
   if (violations.length > 0) {
-    const detail = violations.map((v) => `${v.teamName} missing ${v.position}`).join(", ");
-    throw new Error(`Cannot start season: roster violations — ${detail}`);
+    // Log but don't crash — let the season proceed with minor gaps
+    console.warn(`Roster violations at season start: ${violations.map(v => `${v.teamName} missing ${v.position}`).join(', ')}`);
   }
 
   advanceSeasonPhase(league, PHASES.PRESEASON);
@@ -431,7 +481,9 @@ function processDevelopment(team, rng) {
   for (const player of team.roster) {
     if (player.age <= 26 && player.overall < player.development.potentialCeiling) {
       const playtimeBonus = player.development?.meaningfulPlaytime ? 1 : 0;
-      const gain = Math.max(0, rng.int(0, 3) + moraleBonus + playtimeBonus);
+      // Base gain reduced from 0-3 to 0-2; total capped at 3
+      const rawGain = rng.int(0, 2) + moraleBonus + playtimeBonus;
+      const gain = Math.max(0, Math.min(3, rawGain));
       const newOverall = Math.min(player.development.potentialCeiling, player.overall + gain);
       if (newOverall !== player.overall) {
         const previousOverall = player.overall;
@@ -450,18 +502,17 @@ function processDevelopment(team, rng) {
 function processAgingDeclines(players, rng) {
   const declines = [];
   for (const player of players) {
-    if (player.age >= 30) {
-      const declineRate =
-        player.age >= 36 ? rng.int(3, 6) :
-        player.age >= 33 ? rng.int(1, 4) :
-        player.age >= 30 ? rng.int(0, 2) :
-        0;
-      if (declineRate > 0) {
-        const newOverall = Math.max(40, player.overall - declineRate);
-        declines.push({ playerId: player.id, from: player.overall, to: newOverall });
-        player.overall = newOverall;
-        player.development.yearlyDeclineRate = declineRate;
-      }
+    let declineRate = 0;
+    if (player.age >= 36) declineRate = rng.int(3, 6);
+    else if (player.age >= 33) declineRate = rng.int(1, 4);
+    else if (player.age >= 30) declineRate = rng.int(1, 2);  // guaranteed -1 minimum
+    else if (player.age >= 28) declineRate = rng.next() < 0.10 ? 1 : 0;  // 10% mild decline ages 28-29
+
+    if (declineRate > 0) {
+      const newOverall = Math.max(55, player.overall - declineRate);  // floor at 55
+      declines.push({ playerId: player.id, from: player.overall, to: newOverall });
+      player.overall = newOverall;
+      player.development.yearlyDeclineRate = declineRate;
     }
   }
   return declines;

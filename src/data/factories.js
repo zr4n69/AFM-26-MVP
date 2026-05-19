@@ -265,7 +265,7 @@ function createRatings(position, overall, rng) {
 }
 
 function createContract(salary, rng) {
-  const yearsRemaining = rng.int(1, 7);
+  const yearsRemaining = rng.int(2, 5);
   const guaranteedAmount = Math.round(salary * yearsRemaining * (rng.int(0, 10) / 100));
   const bonusAmount = rng.int(0, 1) ? Math.round(salary * rng.int(5, 20) / 100) : 0;
   return {
@@ -649,8 +649,8 @@ function eligiblePositionsFor(position) {
 }
 
 export function createRookieContractScale(overallPick) {
-  const topSalary = 10_000_000;
-  const bottomSalary = 1_000_000;
+  const topSalary = 22_000_000;
+  const bottomSalary = 2_000_000;
   const decay = 0.08;
   const t = Math.exp(-decay * (overallPick - 1));
   const salary = Math.round(bottomSalary + (topSalary - bottomSalary) * t);
@@ -691,14 +691,14 @@ function emptyContractSummary() {
 }
 
 function salaryForOverall(overall, position, rng) {
-  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(position) ? 1.15 : 1;
+  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(position) ? 1.20 : 1;
   const base =
-    overall >= 88 ? rng.int(100, 150) / 10 :
-    overall >= 82 ? rng.int(55, 90) / 10 :
-    overall >= 76 ? rng.int(30, 55) / 10 :
-    overall >= 70 ? rng.int(18, 35) / 10 :
-    overall >= 62 ? rng.int(8, 18) / 10 :
-    rng.int(5, 10) / 10;
+    overall >= 88 ? rng.int(240, 350) / 10 :
+    overall >= 82 ? rng.int(140, 220) / 10 :
+    overall >= 76 ? rng.int(80, 140) / 10 :
+    overall >= 70 ? rng.int(45, 80) / 10 :
+    overall >= 62 ? rng.int(20, 45) / 10 :
+    rng.int(12, 25) / 10;
   return Math.round(base * premium * 1_000_000);
 }
 

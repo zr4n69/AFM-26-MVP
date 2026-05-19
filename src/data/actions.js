@@ -118,14 +118,14 @@ export function estimateRenegotiationValue(player) {
     player.age >= 28 ? 0.95 :
     1.1;
   const injuryFactor = player.injuryHistory.length >= 3 ? 0.85 : 1.0;
-  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.15 : 1;
+  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.20 : 1;
   const base =
-    player.overall >= 88 ? 12_000_000 :
-    player.overall >= 82 ? 7_000_000 :
-    player.overall >= 76 ? 4_000_000 :
-    player.overall >= 70 ? 2_500_000 :
-    player.overall >= 62 ? 1_200_000 :
-    800_000;
+    player.overall >= 88 ? 28_000_000 :
+    player.overall >= 82 ? 18_000_000 :
+    player.overall >= 76 ? 10_000_000 :
+    player.overall >= 70 ? 6_000_000 :
+    player.overall >= 62 ? 3_000_000 :
+    2_000_000;
   return Math.round(base * premium * ageFactor * injuryFactor);
 }
 

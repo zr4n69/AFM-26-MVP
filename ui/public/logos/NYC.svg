@@ -1,33 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <circle cx="100" cy="100" r="92" fill="#6B6F76"></circle>
-  <circle cx="100" cy="100" r="92" fill="none" stroke="#F4F4F4" stroke-width="6"></circle>
   
-  <g fill="#F4F4F4" opacity="0.7">
-    <circle cx="38" cy="48" r="1.6"></circle>
-    <circle cx="160" cy="58" r="1.4"></circle>
-    <circle cx="56" cy="32" r="1.2"></circle>
-    <circle cx="170" cy="100" r="1.5"></circle>
-    <circle cx="30" cy="100" r="1.2"></circle>
-  </g>
+  <path d="M28 40 L172 40 L188 100 L172 160 L28 160 L12 100 Z" fill="#E8631A" stroke="#0A0A0E" stroke-width="6"></path>
   
-  <g transform="translate(100 152)">
-    <path d="M-14 0 Q-16 18 -8 32 Q0 40 8 32 Q16 18 14 0 Z" fill="#F2C94C"></path>
-    <path d="M-8 0 Q-10 14 -4 28 Q0 34 4 28 Q10 14 8 0 Z" fill="#E8631A"></path>
-    <path d="M-4 0 Q-4 12 0 22 Q4 12 4 0 Z" fill="#F4F4F4"></path>
-  </g>
+  <path d="M12 110 L188 60 L188 92 L12 142 Z" fill="#6B6F76" opacity="0.22"></path>
   
-  <g transform="translate(100 100)">
-    
-    <path d="M-22 38 L-22 18 L-44 38 Z" fill="#E8631A" stroke="#0E0E10" stroke-width="2"></path>
-    <path d="M22 38 L22 18 L44 38 Z" fill="#E8631A" stroke="#0E0E10" stroke-width="2"></path>
-    
-    <path d="M-22 38 L-22 -18 Q-22 -64 0 -78 Q22 -64 22 -18 L22 38 Z" fill="#F4F4F4" stroke="#0E0E10" stroke-width="3"></path>
-    
-    <path d="M-22 -18 Q-22 -64 0 -78 Q22 -64 22 -18 Z" fill="#E8631A" stroke="#0E0E10" stroke-width="2"></path>
-    
-    <circle cx="0" cy="-6" r="11" fill="#0E0E10" stroke="#6B6F76" stroke-width="3"></circle>
-    <circle cx="-3" cy="-9" r="3" fill="#7DC8E8" opacity="0.8"></circle>
-    
-    <rect x="-22" y="14" width="44" height="6" fill="#6B6F76"></rect>
-  </g>
+  <g opacity="0.18"><path d="M100 24 Q124 60 124 110 L124 150 L76 150 L76 110 Q76 60 100 24 Z" fill="#F4F4F4"></path><path d="M76 130 L52 168 L76 158 Z M124 130 L148 168 L124 158 Z" fill="#F4F4F4"></path></g>
+  
+  <path d="M40 158 L100 142 L160 158 L160 168 L100 152 L40 168 Z" fill="#6B6F76" opacity="0.85"></path>
+  
+  <text x="100" y="140" text-anchor="middle" font-family="Anton, Impact, &#39;Archivo Black&#39;, sans-serif" font-weight="400" font-size="132" fill="#F4F5EE" stroke="#0A0A0E" stroke-width="3" paint-order="stroke fill" letter-spacing="2">NY</text>
 </svg>

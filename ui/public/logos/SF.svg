@@ -1,21 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <circle cx="100" cy="100" r="92" fill="#A8322B"></circle>
-  <circle cx="100" cy="100" r="92" fill="none" stroke="#5A5754" stroke-width="6"></circle>
   
-  <g transform="translate(100 100) rotate(-30)">
-    <rect x="-4" y="-58" width="8" height="116" fill="#7A4B2A" stroke="#3A2415" stroke-width="2"></rect>
-    <path d="M-46 -56 Q0 -70 46 -56 L42 -42 Q0 -52 -42 -42 Z" fill="#C9CDD2" stroke="#3A2415" stroke-width="2.5"></path>
-    <path d="M-46 -56 L-42 -42" stroke="#3A2415" stroke-width="2.5" fill="none"></path>
-    <path d="M46 -56 L42 -42" stroke="#3A2415" stroke-width="2.5" fill="none"></path>
-  </g>
+  <path d="M28 40 L172 40 L188 100 L172 160 L28 160 L12 100 Z" fill="#A8322B" stroke="#0A0A0E" stroke-width="6"></path>
   
-  <g transform="translate(100 118)">
-    <path d="M-30 18 Q-30 -10 0 -10 Q30 -10 30 18 Z" fill="#3A2415"></path>
-    <ellipse cx="0" cy="-14" rx="22" ry="18" fill="#E8C9A0"></ellipse>
-    
-    <path d="M-26 -22 Q-26 -42 0 -42 Q26 -42 26 -22 L30 -16 L-30 -16 Z" fill="#7A4B2A" stroke="#3A2415" stroke-width="2"></path>
-    <circle cx="0" cy="-36" r="5" fill="#F4E08A" stroke="#3A2415" stroke-width="1.5"></circle>
-    
-    <path d="M-16 -8 Q0 8 16 -8 Q12 6 0 10 Q-12 6 -16 -8 Z" fill="#5A5754"></path>
-  </g>
+  <path d="M12 110 L188 60 L188 92 L12 142 Z" fill="#5A5754" opacity="0.22"></path>
+  
+  <path d="M40 60 L100 130 M70 35 L160 130" stroke="#7A4B2A" stroke-width="14" stroke-linecap="round" opacity="0.18"></path><circle cx="60" cy="45" r="14" fill="#7A4B2A" opacity="0.18"></circle>
+  
+  <path d="M40 158 L100 142 L160 158 L160 168 L100 152 L40 168 Z" fill="#5A5754" opacity="0.85"></path>
+  
+  <text x="100" y="140" text-anchor="middle" font-family="Anton, Impact, &#39;Archivo Black&#39;, sans-serif" font-weight="400" font-size="132" fill="#F4F5EE" stroke="#0A0A0E" stroke-width="3" paint-order="stroke fill" letter-spacing="2">SF</text>
 </svg>

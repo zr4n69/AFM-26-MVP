@@ -1,25 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <circle cx="100" cy="100" r="92" fill="#7A4B2A"></circle>
-  <circle cx="100" cy="100" r="92" fill="none" stroke="#F4EAD2" stroke-width="6"></circle>
   
-  <rect x="80" y="32" width="40" height="10" fill="#5A3A22" stroke="#2A1A0E" stroke-width="2"></rect>
-  <rect x="96" y="42" width="8" height="10" fill="#5A3A22"></rect>
+  <path d="M28 40 L172 40 L188 100 L172 160 L28 160 L12 100 Z" fill="#7A4B2A" stroke="#0A0A0E" stroke-width="6"></path>
   
-  <g transform="translate(100 100)">
-    <path d="M-50 50 Q-58 0 -36 -42 L36 -42 Q58 0 50 50 Z" fill="#F4EAD2" stroke="#3A2415" stroke-width="3"></path>
-    
-    <rect x="-36" y="-46" width="72" height="10" fill="#D9C29B" stroke="#3A2415" stroke-width="2"></rect>
-    
-    <rect x="-52" y="48" width="104" height="14" rx="2" fill="#D9C29B" stroke="#3A2415" stroke-width="2.5"></rect>
-    
-    <path d="M-18 -36 L-12 -16 L-22 8 L-10 28 L-18 50 L-8 60" stroke="#3A2415" stroke-width="3.5" fill="none" stroke-linecap="round"></path>
-    <path d="M-12 -16 L-2 -2" stroke="#3A2415" stroke-width="2" fill="none"></path>
-    
-    <g transform="translate(16 0)" fill="#8B2E1F" opacity="0.85">
-      <path d="M0 -10 L2 -2 L10 -2 L4 4 L6 12 L0 7 L-6 12 L-4 4 L-10 -2 L-2 -2 Z"></path>
-    </g>
-    
-    <line x1="0" y1="48" x2="0" y2="62" stroke="#3A2415" stroke-width="3"></line>
-    <circle cx="0" cy="66" r="6" fill="#5A3A22" stroke="#2A1A0E" stroke-width="2"></circle>
-  </g>
+  <path d="M12 110 L188 60 L188 92 L12 142 Z" fill="#F4EAD2" opacity="0.22"></path>
+  
+  <path d="M100 28 Q60 28 60 100 L50 140 L150 140 L140 100 Q140 28 100 28 Z M90 150 Q90 168 100 168 Q110 168 110 150 Z" fill="#8B2E1F" opacity="0.18"></path>
+  
+  <path d="M40 158 L100 142 L160 158 L160 168 L100 152 L40 168 Z" fill="#F4EAD2" opacity="0.85"></path>
+  
+  <text x="100" y="140" text-anchor="middle" font-family="Anton, Impact, &#39;Archivo Black&#39;, sans-serif" font-weight="400" font-size="132" fill="#F4F5EE" stroke="#0A0A0E" stroke-width="3" paint-order="stroke fill" letter-spacing="2">PH</text>
 </svg>
