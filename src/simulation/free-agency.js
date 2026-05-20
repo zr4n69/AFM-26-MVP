@@ -139,8 +139,8 @@ export function computeAttractiveness(offer, player, league, prestigeWeight, rng
     prestigeScore * prestigeWeight * 0.20 +
     performanceScore * 0.15 +
     needScore * 0.10 +
-    moraleScore * 0.10 +
-    balancePenalty * 0.10 +
+    moraleScore * 0.05 +
+    balancePenalty * 0.15 +
     noise
   );
 }

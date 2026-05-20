@@ -159,18 +159,18 @@ function GamePreview({ team, opp, week, season, onStart, onNav }) {
           }}>
             <div>
               <div style={{ fontSize: 11, letterSpacing: '0.1em', opacity: 0.85, textTransform: 'uppercase' }}>{isHome ? 'Home' : 'Away'} · {team.w}-{team.l}</div>
-              <div style={{ font: '700 32px var(--font-display)', marginTop: 4 }}>{team.city}</div>
-              <div style={{ font: '700 32px var(--font-display)', lineHeight: 1 }}>{team.name}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(16px, 4.5vw, 32px)', fontFamily: 'var(--font-display)', marginTop: 4 }}>{team.city}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(16px, 4.5vw, 32px)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>{team.name}</div>
               <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>OVR {team.ovr} · OFF {team.offRating} · DEF {team.defRating}</div>
             </div>
             <div style={{ textAlign: 'center', color: 'var(--ink-2)' }}>
               <div style={{ font: '700 11px var(--font-mono)', color: 'var(--ink-4)', letterSpacing: '0.1em' }}>WEEK {week} · SEASON {season}</div>
-              <div style={{ font: '700 56px var(--font-display)', color: 'var(--ink-1)', lineHeight: 1, margin: '6px 0' }}>VS</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(32px, 8vw, 56px)', fontFamily: 'var(--font-display)', color: 'var(--ink-1)', lineHeight: 1, margin: '6px 0' }}>VS</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, letterSpacing: '0.1em', opacity: 0.85, textTransform: 'uppercase' }}>{isHome ? 'Away' : 'Home'} · {opp.w}-{opp.l}</div>
-              <div style={{ font: '700 32px var(--font-display)', marginTop: 4 }}>{opp.city}</div>
-              <div style={{ font: '700 32px var(--font-display)', lineHeight: 1 }}>{opp.name}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(16px, 4.5vw, 32px)', fontFamily: 'var(--font-display)', marginTop: 4 }}>{opp.city}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(16px, 4.5vw, 32px)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>{opp.name}</div>
               <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>OVR {opp.ovr} · OFF {opp.offRating} · DEF {opp.defRating}</div>
             </div>
           </div>
@@ -272,7 +272,7 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
                 <div style={{ font: '700 20px var(--font-display)' }}>{team.abbr}</div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>{team.name}</div>
               </div>
-              <div style={{ font: '700 64px var(--font-display)', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{scoreUs}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(36px, 10vw, 64px)', fontFamily: 'var(--font-display)', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{scoreUs}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ font: '700 11px var(--font-mono)', letterSpacing: '0.12em', opacity: 0.6 }}>Q{quarter}</div>
@@ -282,7 +282,7 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
               <div style={{ fontSize: 11, opacity: 0.6, marginTop: 8 }}>{poss === 'us' ? team.abbr : opp.abbr} ball</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: 'flex-end' }}>
-              <div style={{ font: '700 64px var(--font-display)', marginRight: 'auto', fontVariantNumeric: 'tabular-nums' }}>{scoreThem}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(36px, 10vw, 64px)', fontFamily: 'var(--font-display)', marginRight: 'auto', fontVariantNumeric: 'tabular-nums' }}>{scoreThem}</div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ font: '700 20px var(--font-display)' }}>{opp.abbr}</div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>{opp.name}</div>
@@ -360,7 +360,7 @@ function GameRecap({ team, opp, game, drives, week, onNext }) {
                 <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{team.city}</div>
                 <div style={{ font: '700 26px var(--font-display)' }}>{team.name}</div>
               </div>
-              <div style={{ font: '700 80px var(--font-display)', marginLeft: 'auto', color: won ? 'var(--ink-1)' : 'var(--ink-4)', fontVariantNumeric: 'tabular-nums' }}>{scoreUs}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(40px, 12vw, 80px)', fontFamily: 'var(--font-display)', marginLeft: 'auto', color: won ? 'var(--ink-1)' : 'var(--ink-4)', fontVariantNumeric: 'tabular-nums' }}>{scoreUs}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ font: '700 11px var(--font-mono)', letterSpacing: '0.12em', color: 'var(--ink-4)' }}>FINAL</div>
@@ -369,7 +369,7 @@ function GameRecap({ team, opp, game, drives, week, onNext }) {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, justifyContent: 'flex-end' }}>
-              <div style={{ font: '700 80px var(--font-display)', marginRight: 'auto', color: !won ? 'var(--ink-1)' : 'var(--ink-4)', fontVariantNumeric: 'tabular-nums' }}>{scoreThem}</div>
+              <div style={{ fontWeight: 700, fontSize: 'clamp(40px, 12vw, 80px)', fontFamily: 'var(--font-display)', marginRight: 'auto', color: !won ? 'var(--ink-1)' : 'var(--ink-4)', fontVariantNumeric: 'tabular-nums' }}>{scoreThem}</div>
               <div style={{ textAlign: 'right' }}>
                 <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{opp.city}</div>
                 <div style={{ font: '700 26px var(--font-display)' }}>{opp.name}</div>

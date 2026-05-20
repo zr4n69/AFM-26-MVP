@@ -70,7 +70,7 @@ export function ScreenRoster({ onNav }) {
         </div>
 
         <div className="card">
-          <div className="card-h" style={{ gap: 16 }}>
+          <div className="card-h" style={{ gap: 16, flexWrap: 'wrap' }}>
             <div className="tabs" style={{ border: 'none', margin: 0 }}>
               {FILTERS.map(f => (
                 <div key={f} className={`tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)} style={{ borderBottom: 'none', paddingBottom: 8 }}>{f}</div>
@@ -88,8 +88,8 @@ export function ScreenRoster({ onNav }) {
               <thead>
                 <tr>
                   <th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th><th>Pot</th>
-                  <th>Status</th><th>Fatigue</th><th>Traits</th>
-                  <th className="num">Yrs</th><th className="num">Cap</th>
+                  <th>Status</th><th className="col-mobile-hide">Fatigue</th><th className="col-mobile-hide">Traits</th>
+                  <th className="num col-mobile-hide">Yrs</th><th className="num">Cap</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,9 +109,9 @@ export function ScreenRoster({ onNav }) {
                     <td className="num"><OvrPill ovr={p.ovr} /></td>
                     <td><Stars n={p.potential} /></td>
                     <td><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
-                    <td><FatigueBar value={p.fatigue} /></td>
-                    <td className="muted" style={{ fontSize: 11 }}>{p.traits.join(' · ') || '—'}</td>
-                    <td className="num mono">{p.years}</td>
+                    <td className="col-mobile-hide"><FatigueBar value={p.fatigue} /></td>
+                    <td className="muted col-mobile-hide" style={{ fontSize: 11 }}>{p.traits.join(' · ') || '—'}</td>
+                    <td className="num mono col-mobile-hide">{p.years}</td>
                     <td className="num mono">{formatM(p.cap)}</td>
                   </tr>
                 ))}
@@ -166,7 +166,7 @@ function PlayerDetailModal({ player, team, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.5)', display: 'grid', placeItems: 'center' }}
       onClick={onClose}>
-      <div className="card" style={{ width: 560, maxHeight: '80vh', overflowY: 'auto', animation: 'fadeIn .15s ease-out' }}
+      <div className="card" style={{ width: '95vw', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', animation: 'fadeIn .15s ease-out' }}
         onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{
@@ -190,7 +190,7 @@ function PlayerDetailModal({ player, team, onClose }) {
 
         <div className="card-b" style={{ padding: '16px 24px' }}>
           {/* Contract Info */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 20, textAlign: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12, marginBottom: 20, textAlign: 'center' }}>
             <div><div className="muted" style={{ fontSize: 11 }}>Salary</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.salary)}/yr</div></div>
             <div><div className="muted" style={{ fontSize: 11 }}>Cap Hit</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.cap)}/yr</div></div>
             <div><div className="muted" style={{ fontSize: 11 }}>Years Left</div><div style={{ fontWeight: 700 }}>{p.years}</div></div>

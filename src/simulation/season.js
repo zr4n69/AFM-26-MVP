@@ -506,7 +506,7 @@ function processAgingDeclines(players, rng) {
     if (player.age >= 36) declineRate = rng.int(3, 6);
     else if (player.age >= 33) declineRate = rng.int(1, 4);
     else if (player.age >= 30) declineRate = rng.int(1, 2);  // guaranteed -1 minimum
-    else if (player.age >= 28) declineRate = rng.next() < 0.10 ? 1 : 0;  // 10% mild decline ages 28-29
+    else if (player.age >= 28) declineRate = rng.next() < 0.22 ? 1 : 0;  // 22% mild decline ages 28-29
 
     if (declineRate > 0) {
       const newOverall = Math.max(55, player.overall - declineRate);  // floor at 55

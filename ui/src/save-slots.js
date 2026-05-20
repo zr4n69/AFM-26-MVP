@@ -46,7 +46,14 @@ export function saveToSlot(league, slotIndex, reason = "manual") {
     savedAt: new Date().toISOString(),
     league: structuredClone(league)
   };
-  localStorage.setItem(slotKey(slotIndex), JSON.stringify(snapshot));
+  try {
+    localStorage.setItem(slotKey(slotIndex), JSON.stringify(snapshot));
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      throw new Error('Save failed: storage quota exceeded. Try deleting another save slot.');
+    }
+    throw e;
+  }
   return snapshot;
 }
 
@@ -57,7 +64,12 @@ export function loadFromSlot(slotIndex) {
   if (snapshot.version !== SAVE_VERSION || !snapshot.league) {
     throw new Error(`Unsupported save format in slot ${slotIndex}.`);
   }
-  return snapshot.league;
+  const league = snapshot.league;
+  // Validate minimum shape to guard against tampered/corrupted saves
+  if (!Array.isArray(league.teams) || typeof league.currentSeason !== 'number') {
+    throw new Error(`Save slot ${slotIndex} contains invalid data.`);
+  }
+  return league;
 }
 
 export function deleteSlot(slotIndex) {

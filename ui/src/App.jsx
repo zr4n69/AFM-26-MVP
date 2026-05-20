@@ -189,7 +189,7 @@ function MainMenu({ onStartGame, onLoadGame }) {
                   onClick={() => setNewGameSlot(null)}>&times;</button>
               </div>
               <div style={{ padding: '16px 24px', maxHeight: '55vh', overflowY: 'auto' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 8 }}>
                   {TEAM_OPTIONS.map(t => (
                     <div key={t.index}
                       onClick={() => setSelectedTeamIndex(t.index)}
@@ -259,7 +259,7 @@ function App() {
 
   if (screen === 'game' && activeLeague) {
     return (
-      <LeagueProvider seed={activeLeague.seed} playerTeamIndex={activeLeague.teams.findIndex(t => t.isPlayerControlled)} initialLeague={activeLeague}>
+      <LeagueProvider key={activeSlot} initialLeague={activeLeague}>
         <GameShell slotIndex={activeSlot} onExitToMenu={handleExit} />
       </LeagueProvider>
     );
