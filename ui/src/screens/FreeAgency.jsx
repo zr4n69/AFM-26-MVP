@@ -72,9 +72,9 @@ export function ScreenFreeAgency({ onNav }) {
             <div className="delta">Available to spend</div>
           </div>
           <div className="stat-tile" style={rosterFull ? { borderColor: 'var(--neg)' } : {}}>
-            <div className="label">Roster Spots</div>
-            <div className="value" style={rosterFull ? { color: 'var(--neg)' } : {}}>{rosterSpots}<span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
-            <div className={`delta ${rosterFull ? 'neg' : ''}`}>{rosterFull ? 'Release a player first!' : 'Active limit'}</div>
+            <div className="label">Roster Size</div>
+            <div className="value" style={rosterFull ? { color: 'var(--neg)' } : {}}>{rosterCount}<span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
+            <div className={`delta ${rosterFull ? 'neg' : ''}`}>{rosterFull ? 'Release a player first!' : `${rosterSpots} spot${rosterSpots === 1 ? '' : 's'} open`}</div>
           </div>
           <div className="stat-tile">
             <div className="label">Free Agents</div>
