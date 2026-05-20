@@ -35,7 +35,8 @@ export function calculateTradeValue(league, teamId, assets) {
 export function evaluateCpuTradeResponse(league, trade) {
   const rng = createRng(`trade-eval-${trade.id}-${league.currentSeason}`);
 
-  const incomingValue = calculateTradeValue(league, trade.toTeamId, {
+  // Offered players live on fromTeam's roster, so value them from that team's perspective
+  const incomingValue = calculateTradeValue(league, trade.fromTeamId, {
     playerIds: trade.offeredPlayerIds,
     pickIds: trade.offeredPickIds,
   });

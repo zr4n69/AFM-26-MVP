@@ -163,11 +163,18 @@ export function GameShell({ slotIndex, onExitToMenu }) {
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
+  const [saveError, setSaveError] = useState(null);
 
   const save = useCallback(() => {
-    const league = actions.getRawLeague();
-    saveToSlot(league, slotIndex, 'manual');
-    setLastSaved(new Date().toISOString());
+    try {
+      const league = actions.getRawLeague();
+      saveToSlot(league, slotIndex, 'manual');
+      setLastSaved(new Date().toISOString());
+      setSaveError(null);
+    } catch (e) {
+      console.error('[save]', e);
+      setSaveError(e.message);
+    }
   }, [actions, slotIndex]);
 
   useEffect(() => {
@@ -221,6 +228,15 @@ export function GameShell({ slotIndex, onExitToMenu }) {
 
       {/* Broadcast chyron ticker */}
       <Chyron season={season} week={week} />
+
+      {saveError && (
+        <Dialog
+          title="Save Failed"
+          message={saveError}
+          onClose={() => setSaveError(null)}
+          actions={<button className="btn" onClick={() => setSaveError(null)}>OK</button>}
+        />
+      )}
 
       {showSaveDialog && (
         <Dialog

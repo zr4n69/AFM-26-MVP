@@ -8,13 +8,18 @@ const DEF_POS = ['EDGE', 'DT', 'LB', 'CB', 'S'];
 const ST_POS = ['K', 'P', 'LS'];
 
 export function ScreenRoster({ onNav }) {
-  const { userTeam } = useLeague();
+  const { userTeam, actions } = useLeague();
   const team = userTeam;
   if (!team) return null;
 
   const [filter, setFilter] = useState('All');
   const [sortKey, setSortKey] = useState('ovr');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+  function handleRelease(playerId) {
+    actions.releasePlayer(team.id, playerId);
+    setSelectedPlayer(null);
+  }
 
   let roster = [...team.roster];
   if (filter === 'Offense') roster = roster.filter(p => OFF_POS.includes(p.pos));
@@ -122,19 +127,20 @@ export function ScreenRoster({ onNav }) {
 
         {/* Player Detail Modal */}
         {selectedPlayer && (
-          <PlayerDetailModal player={selectedPlayer} team={team} onClose={() => setSelectedPlayer(null)} />
+          <PlayerDetailModal player={selectedPlayer} team={team} onClose={() => setSelectedPlayer(null)} onRelease={handleRelease} />
         )}
       </div>
     </>
   );
 }
 
-function PlayerDetailModal({ player, team, onClose }) {
+function PlayerDetailModal({ player, team, onClose, onRelease }) {
   const p = player;
   const attrs = p.attrs || {};
   const careerStats = p.careerStats || {};
   const seasonStats = p._engine?.stats || {};
   const awards = p._engine?.awards || [];
+  const [confirmRelease, setConfirmRelease] = useState(false);
 
   const ratingLabels = {
     awareness: 'Awareness', stamina: 'Stamina', discipline: 'Discipline',
@@ -276,9 +282,25 @@ function PlayerDetailModal({ player, team, onClose }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
-            <button className="btn" onClick={onClose}>Close</button>
-          </div>
+          {confirmRelease ? (
+            <div style={{ paddingTop: 8, background: '#FFF5F5', borderRadius: 6, padding: '12px 14px', border: '1px solid #FEE2E2' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Release {p.name}?</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                Dead money: {formatM(p._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(p._engine?.contract?.releaseImpact?.capSavings ?? 0)}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" style={{ background: 'var(--neg)', color: 'white', borderColor: 'var(--neg)' }}
+                  onClick={() => onRelease(p.id)}>Confirm Release</button>
+                <button className="btn" onClick={() => setConfirmRelease(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8 }}>
+              <button className="btn" style={{ color: 'var(--neg)', borderColor: 'var(--neg)' }}
+                onClick={() => setConfirmRelease(true)}>Release Player</button>
+              <button className="btn" onClick={onClose}>Close</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

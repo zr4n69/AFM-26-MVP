@@ -39,12 +39,46 @@ export function listSaveSlots() {
   return slots;
 }
 
+/**
+ * Strip data that is large and not required for persistence:
+ *  - driveLog: ~114 KB per game, only needed during live sim view (regenerated each session)
+ *  - schedule game results: already stored in league.games; schedule only needs id/teams/played
+ *  - autosaveLog: cap to prevent unbounded growth
+ */
+function pruneLeagueForStorage(league) {
+  if (Array.isArray(league.games)) {
+    for (const g of league.games) {
+      delete g.driveLog;
+    }
+  }
+  if (Array.isArray(league.schedule)) {
+    for (const week of league.schedule) {
+      for (const g of (week.games || [])) {
+        delete g.driveLog;
+        delete g.boxScore;
+        delete g.keyEvents;
+        delete g.injuries;
+      }
+    }
+  }
+  if (Array.isArray(league.autosaveLog) && league.autosaveLog.length > 200) {
+    league.autosaveLog = league.autosaveLog.slice(-100);
+  }
+}
+
 export function saveToSlot(league, slotIndex, reason = "manual") {
+  let cloned;
+  try {
+    cloned = structuredClone(league);
+  } catch (e) {
+    throw new Error(`Save failed: could not clone state — ${e.message}`);
+  }
+  pruneLeagueForStorage(cloned);
   const snapshot = {
     version: SAVE_VERSION,
     reason,
     savedAt: new Date().toISOString(),
-    league: structuredClone(league)
+    league: cloned,
   };
   try {
     localStorage.setItem(slotKey(slotIndex), JSON.stringify(snapshot));
