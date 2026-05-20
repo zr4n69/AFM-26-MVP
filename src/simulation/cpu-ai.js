@@ -330,11 +330,10 @@ function executeCpuExtensions(team, rng) {
   for (const player of eligible) {
     const years = rng.int(2, 5);
     const salary = estimateSalary(player);
-    const projectedCapHit = salary + Math.round(salary * years * 0.2 / years);
-    // Skip if extension would push team over cap
-    if (team.contractSummary.capSpace < projectedCapHit) continue;
-    player.contract = createContractFromSalary(salary, years);
-    team.contractSummary.capSpace -= projectedCapHit;
+    const contract = createContractFromSalary(salary, years);
+    if (team.contractSummary.capSpace < contract.capHit) continue;
+    player.contract = contract;
+    team.contractSummary.capSpace -= contract.capHit;
     extensions.push({ teamId: team.id, playerId: player.id, salary, years });
   }
   return extensions;

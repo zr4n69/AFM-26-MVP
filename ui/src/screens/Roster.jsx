@@ -283,7 +283,7 @@ function PlayerDetailModal({ player, team, onClose, onRelease }) {
           )}
 
           {confirmRelease ? (
-            <div style={{ paddingTop: 8, background: '#FFF5F5', borderRadius: 6, padding: '12px 14px', border: '1px solid #FEE2E2' }}>
+            <div style={{ background: '#FFF5F5', borderRadius: 6, padding: '12px 14px', border: '1px solid #FEE2E2' }}>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>Release {p.name}?</div>
               <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
                 Dead money: {formatM(p._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(p._engine?.contract?.releaseImpact?.capSavings ?? 0)}
