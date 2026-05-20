@@ -259,7 +259,7 @@ function App() {
 
   if (screen === 'game' && activeLeague) {
     return (
-      <LeagueProvider seed={activeLeague.seed} playerTeamIndex={activeLeague.teams.findIndex(t => t.isPlayerControlled)}>
+      <LeagueProvider seed={activeLeague.seed} playerTeamIndex={activeLeague.teams.findIndex(t => t.isPlayerControlled)} initialLeague={activeLeague}>
         <GameShell slotIndex={activeSlot} onExitToMenu={handleExit} />
       </LeagueProvider>
     );

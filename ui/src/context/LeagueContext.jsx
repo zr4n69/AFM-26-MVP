@@ -10,9 +10,9 @@ import { bridgeLeague } from '../data/bridge.js';
 
 const LeagueContext = createContext(null);
 
-export function LeagueProvider({ children, seed = 'afm26-mvp', playerTeamIndex = 0 }) {
+export function LeagueProvider({ children, seed = 'afm26-mvp', playerTeamIndex = 0, initialLeague = null }) {
   const [league, setLeague] = useState(() =>
-    createLeague(seed, { playerTeamIndex, playerPrestige: 4.25 })
+    initialLeague ? structuredClone(initialLeague) : createLeague(seed, { playerTeamIndex, playerPrestige: 4.25 })
   );
   const [rev, setRev] = useState(0);
 
