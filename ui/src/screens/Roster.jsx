@@ -15,6 +15,7 @@ export function ScreenRoster({ onNav }) {
   const [filter, setFilter] = useState('All');
   const [sortKey, setSortKey] = useState('ovr');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [cutTarget, setCutTarget] = useState(null);
 
   function handleRelease(playerId) {
     actions.releasePlayer(team.id, playerId);
@@ -94,13 +95,13 @@ export function ScreenRoster({ onNav }) {
                 <tr>
                   <th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th><th>Pot</th>
                   <th>Status</th><th className="col-mobile-hide">Fatigue</th><th className="col-mobile-hide">Traits</th>
-                  <th className="num col-mobile-hide">Yrs</th><th className="num">Cap</th>
+                  <th className="num col-mobile-hide">Yrs</th><th className="num">Cap</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {roster.map(p => (
-                  <tr key={p.id} onClick={() => setSelectedPlayer(p)} style={{ cursor: 'pointer' }}>
-                    <td>
+                  <tr key={p.id} style={{ cursor: 'pointer' }}>
+                    <td onClick={() => setSelectedPlayer(p)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Avatar player={p} team={team} size={30} />
                         <div>
@@ -109,15 +110,19 @@ export function ScreenRoster({ onNav }) {
                         </div>
                       </div>
                     </td>
-                    <td className="mono"><strong>{p.pos}</strong></td>
-                    <td className="num">{p.age}</td>
-                    <td className="num"><OvrPill ovr={p.ovr} /></td>
-                    <td><Stars n={p.potential} /></td>
-                    <td><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
-                    <td className="col-mobile-hide"><FatigueBar value={p.fatigue} /></td>
-                    <td className="muted col-mobile-hide" style={{ fontSize: 11 }}>{p.traits.join(' · ') || '—'}</td>
-                    <td className="num mono col-mobile-hide">{p.years}</td>
-                    <td className="num mono">{formatM(p.cap)}</td>
+                    <td className="mono" onClick={() => setSelectedPlayer(p)}><strong>{p.pos}</strong></td>
+                    <td className="num" onClick={() => setSelectedPlayer(p)}>{p.age}</td>
+                    <td className="num" onClick={() => setSelectedPlayer(p)}><OvrPill ovr={p.ovr} /></td>
+                    <td onClick={() => setSelectedPlayer(p)}><Stars n={p.potential} /></td>
+                    <td onClick={() => setSelectedPlayer(p)}><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
+                    <td className="col-mobile-hide" onClick={() => setSelectedPlayer(p)}><FatigueBar value={p.fatigue} /></td>
+                    <td className="muted col-mobile-hide" style={{ fontSize: 11 }} onClick={() => setSelectedPlayer(p)}>{p.traits.join(' · ') || '—'}</td>
+                    <td className="num mono col-mobile-hide" onClick={() => setSelectedPlayer(p)}>{p.years}</td>
+                    <td className="num mono" onClick={() => setSelectedPlayer(p)}>{formatM(p.cap)}</td>
+                    <td>
+                      <button className="btn" style={{ padding: '3px 8px', fontSize: 10, color: 'var(--neg)', borderColor: 'var(--neg)' }}
+                        onClick={(e) => { e.stopPropagation(); setCutTarget(p); }}>Cut</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -128,6 +133,33 @@ export function ScreenRoster({ onNav }) {
         {/* Player Detail Modal */}
         {selectedPlayer && (
           <PlayerDetailModal player={selectedPlayer} team={team} onClose={() => setSelectedPlayer(null)} onRelease={handleRelease} />
+        )}
+
+        {/* Quick Cut confirmation */}
+        {cutTarget && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.5)', display: 'grid', placeItems: 'center' }}
+            onClick={() => setCutTarget(null)}>
+            <div className="card" style={{ width: 380, maxWidth: '90vw', animation: 'fadeIn .15s ease-out' }}
+              onClick={e => e.stopPropagation()}>
+              <div className="card-h"><h2>Release {cutTarget.name}?</h2></div>
+              <div className="card-b">
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
+                  <span className="mono">{cutTarget.pos}</span>
+                  <span>Age {cutTarget.age}</span>
+                  <OvrPill ovr={cutTarget.ovr} />
+                  <span className="muted">{formatM(cutTarget.cap)}/yr</span>
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 16 }}>
+                  Dead money: {formatM(cutTarget._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(cutTarget._engine?.contract?.releaseImpact?.capSavings ?? 0)}
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn" onClick={() => setCutTarget(null)}>Cancel</button>
+                  <button className="btn" style={{ background: 'var(--neg)', color: 'white', borderColor: 'var(--neg)' }}
+                    onClick={() => { handleRelease(cutTarget.id); setCutTarget(null); }}>Confirm Release</button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>

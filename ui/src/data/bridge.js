@@ -210,6 +210,8 @@ export function bridgeFreeAgent(player) {
     potential: player.potentialStars,
     traits: (player.traits || []).map(t => t.name || t),
     injStatus: player.health?.status === 'healthy' ? null : player.health?.status?.[0]?.toUpperCase(),
+    careerStats: player.careerStats || {},
+    stats: player.stats || {},
     _engine: player,
   };
 }

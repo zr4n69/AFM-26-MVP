@@ -25,6 +25,10 @@ export function runFreeAgencyPeriod(league, options = {}) {
     scored.sort((a, b) => b.attractiveness - a.attractiveness);
 
     const winner = resolveDecision(scored, rng);
+    if (!winner) {
+      results.unsignedPlayers.push({ playerId: player.id, position: player.position, overall: player.overall });
+      continue;
+    }
     executeSigning(league, winner, player);
 
     results.signings.push({
@@ -91,10 +95,20 @@ export function resolvePendingOffers(league, options = {}) {
     scored.sort((a, b) => b.attractiveness - a.attractiveness);
 
     const winner = resolveDecision(scored, rng);
+    const playerInfo = { firstName: player.firstName, lastName: player.lastName, position: player.position, overall: player.overall };
+
+    // Player rejected all offers (below minimum threshold)
+    if (!winner) {
+      for (const offer of scored) {
+        results.rejections.push({ playerId, teamId: offer.teamId, reason: "Offer too low — wants more money or years", player: playerInfo });
+      }
+      continue;
+    }
+
     const team = league.teams.find((t) => t.id === winner.teamId);
     const activeRoster = team ? team.roster.filter((p) => p.health.status === "healthy").length : 0;
     if (!team || activeRoster >= LEAGUE_RULES.rosterLimit) {
-      results.rejections.push({ playerId, reason: "roster_full", player: { firstName: player.firstName, lastName: player.lastName, position: player.position, overall: player.overall } });
+      results.rejections.push({ playerId, reason: "roster_full", player: playerInfo });
       continue;
     }
 
@@ -105,11 +119,11 @@ export function resolvePendingOffers(league, options = {}) {
       salary: winner.salary,
       years: winner.years,
       attractiveness: winner.attractiveness,
-      player: { firstName: player.firstName, lastName: player.lastName, position: player.position, overall: player.overall },
+      player: playerInfo,
     });
 
     for (const loser of scored.filter((o) => o.teamId !== winner.teamId)) {
-      results.rejections.push({ playerId, teamId: loser.teamId, reason: "outbid", player: { firstName: player.firstName, lastName: player.lastName, position: player.position, overall: player.overall } });
+      results.rejections.push({ playerId, teamId: loser.teamId, reason: "outbid", player: playerInfo });
     }
   }
 
@@ -241,10 +255,23 @@ function positionalNeed(team, position) {
   return Math.min(1.0, (target - current) / target);
 }
 
+/**
+ * Minimum attractiveness threshold below which a player rejects all offers.
+ * Better players have higher expectations. Returns null if no offer is good enough.
+ */
 function resolveDecision(scoredOffers, rng) {
-  if (scoredOffers.length === 1) return scoredOffers[0];
+  if (scoredOffers.length === 0) return null;
 
   const best = scoredOffers[0];
+
+  // Players have a minimum bar — won't sign for terrible offers
+  // Scale: 0.25 baseline, better players demand more (up to 0.45)
+  // Contract value (35% weight) being near 0 tanks attractiveness below this
+  const minThreshold = 0.20 + rng.next() * 0.10; // 0.20 - 0.30 random floor
+  if (best.attractiveness < minThreshold) return null;
+
+  if (scoredOffers.length === 1) return best;
+
   const second = scoredOffers[1];
   const gap = best.attractiveness - second.attractiveness;
 
