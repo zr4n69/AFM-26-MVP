@@ -22,23 +22,25 @@ function phaseLabel(phase) {
   return labels[phase] ?? phase;
 }
 
+const BASE = import.meta.env.BASE_URL;
+
 const TEAM_OPTIONS = [
-  { index: 0, city: 'Portland', name: 'Stags', primary: '#A8322B', secondary: '#5A5754' },
-  { index: 1, city: 'Austin', name: 'Founders', primary: '#D9C9A8', secondary: '#1B3A6B' },
-  { index: 2, city: 'Columbus', name: 'Comets', primary: '#E8631A', secondary: '#6B6F76' },
-  { index: 3, city: 'Sacramento', name: 'Ridgebacks', primary: '#3E1F6B', secondary: '#0B0B12' },
-  { index: 4, city: 'Orlando', name: 'Pilots', primary: '#E8851A', secondary: '#F2C94C' },
-  { index: 5, city: 'Memphis', name: 'Kings', primary: '#0E0E10', secondary: '#F2F2F2' },
-  { index: 6, city: 'Omaha', name: 'Steel', primary: '#5A3A22', secondary: '#1F3B2D' },
-  { index: 7, city: 'Raleigh', name: 'Redwoods', primary: '#F4EFE6', secondary: '#C9A227' },
-  { index: 8, city: 'Salt Lake', name: 'Summit', primary: '#0E0E10', secondary: '#E8C547' },
-  { index: 9, city: 'Milwaukee', name: 'Harbors', primary: '#B11226', secondary: '#E8B042' },
-  { index: 10, city: 'San Antonio', name: 'Marshals', primary: '#13294B', secondary: '#A8322B' },
-  { index: 11, city: 'Louisville', name: 'Thoroughbreds', primary: '#7A4B2A', secondary: '#F4EAD2' },
-  { index: 12, city: 'Boise', name: 'Cutthroats', primary: '#A8322B', secondary: '#E8851A' },
-  { index: 13, city: 'Birmingham', name: 'Vulcans', primary: '#0F4C81', secondary: '#3FB8AF' },
-  { index: 14, city: 'Albuquerque', name: 'Roadrunners', primary: '#0B1F3A', secondary: '#A8A8AC' },
-  { index: 15, city: 'Providence', name: 'Anchors', primary: '#2F5233', secondary: '#F4F4F4' },
+  { index: 0, city: 'Portland', name: 'Stags', primary: '#A8322B', secondary: '#5A5754', logo: `${BASE}logos/SF.svg` },
+  { index: 1, city: 'Austin', name: 'Founders', primary: '#D9C9A8', secondary: '#1B3A6B', logo: `${BASE}logos/AUS.svg` },
+  { index: 2, city: 'Columbus', name: 'Comets', primary: '#E8631A', secondary: '#6B6F76', logo: `${BASE}logos/NYC.svg` },
+  { index: 3, city: 'Sacramento', name: 'Ridgebacks', primary: '#3E1F6B', secondary: '#0B0B12', logo: `${BASE}logos/LA.svg` },
+  { index: 4, city: 'Orlando', name: 'Pilots', primary: '#E8851A', secondary: '#F2C94C', logo: `${BASE}logos/SD.svg` },
+  { index: 5, city: 'Memphis', name: 'Kings', primary: '#0E0E10', secondary: '#F2F2F2', logo: `${BASE}logos/LV.svg` },
+  { index: 6, city: 'Omaha', name: 'Steel', primary: '#5A3A22', secondary: '#1F3B2D', logo: `${BASE}logos/WYO.svg` },
+  { index: 7, city: 'Raleigh', name: 'Redwoods', primary: '#F4EFE6', secondary: '#C9A227', logo: `${BASE}logos/SLC.svg` },
+  { index: 8, city: 'Salt Lake', name: 'Summit', primary: '#0E0E10', secondary: '#E8C547', logo: `${BASE}logos/NM.svg` },
+  { index: 9, city: 'Milwaukee', name: 'Harbors', primary: '#B11226', secondary: '#E8B042', logo: `${BASE}logos/PHX.svg` },
+  { index: 10, city: 'San Antonio', name: 'Marshals', primary: '#13294B', secondary: '#A8322B', logo: `${BASE}logos/PA.svg` },
+  { index: 11, city: 'Louisville', name: 'Thoroughbreds', primary: '#7A4B2A', secondary: '#F4EAD2', logo: `${BASE}logos/PHI.svg` },
+  { index: 12, city: 'Boise', name: 'Cutthroats', primary: '#A8322B', secondary: '#E8851A', logo: `${BASE}logos/TB.svg` },
+  { index: 13, city: 'Birmingham', name: 'Vulcans', primary: '#0F4C81', secondary: '#3FB8AF', logo: `${BASE}logos/MIA.svg` },
+  { index: 14, city: 'Albuquerque', name: 'Roadrunners', primary: '#0B1F3A', secondary: '#A8A8AC', logo: `${BASE}logos/HOU.svg` },
+  { index: 15, city: 'Providence', name: 'Anchors', primary: '#2F5233', secondary: '#F4F4F4', logo: `${BASE}logos/JAX.svg` },
 ];
 
 function MainMenu({ onStartGame, onLoadGame }) {
@@ -205,8 +207,13 @@ function MainMenu({ onStartGame, onLoadGame }) {
                       }}>
                       <div style={{
                         width: 36, height: 36, flex: '0 0 36px',
-                        background: `linear-gradient(135deg, ${t.primary} 60%, ${t.secondary} 60%)`,
-                      }} />
+                        background: t.primary,
+                        display: 'grid', placeItems: 'center',
+                        borderRadius: 4, overflow: 'hidden',
+                        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
+                      }}>
+                        <img src={t.logo} alt={t.name} style={{ width: '82%', height: '82%', display: 'block' }} />
+                      </div>
                       <div>
                         <div style={{
                           fontSize: 10, color: 'var(--ink-3)',
