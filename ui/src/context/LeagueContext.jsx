@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { createLeague } from '@engine/data/factories.js';
-import { updateStrategy, setDepthChart, releasePlayer, signPlayer, extendContract, scheduleTrainingSession, resolveTrainingSession, scoutProspectGroup, draftProspect, processUndraftedFreeAgents, proposeTrade, completeTrade, castHallOfFameVotes } from '@engine/data/actions.js';
-import { simulateWeek } from '@engine/simulation/engine.js';
+import { updateStrategy, setDepthChart, releasePlayer, signPlayer, extendContract, scheduleTrainingSession, resolveTrainingSession, scoutProspectGroup, draftProspect, processUndraftedFreeAgents, proposeTrade, completeTrade, castHallOfFameVotes, generatePlayoffBracket, advanceSeasonPhase } from '@engine/data/actions.js';
+import { simulateWeek, generatePlayoffSeeds, simulatePlayoffRound } from '@engine/simulation/engine.js';
 import { cpuPickProspect, convertProspectToPlayer } from '@engine/simulation/cpu-ai.js';
 import { makeContractOffer, resolvePendingOffers } from '@engine/simulation/free-agency.js';
 import { calculateTradeValue, evaluateCpuTradeResponse } from '@engine/simulation/trade-value.js';
@@ -180,6 +180,44 @@ export function LeagueProvider({ children, seed = 'afm26-mvp', playerTeamIndex =
       const result = castHallOfFameVotes(league, teamId, playerIds);
       bump();
       return result;
+    },
+    generatePlayoffs() {
+      try {
+        const seeds = generatePlayoffSeeds(league);
+        const bracket = generatePlayoffBracket(league, seeds);
+        bump();
+        return bracket;
+      } catch (e) {
+        console.error('[generatePlayoffs]', e);
+        bump();
+        return null;
+      }
+    },
+    simulatePlayoffRound(roundName) {
+      try {
+        const games = simulatePlayoffRound(league, roundName);
+        bump();
+        return games;
+      } catch (e) {
+        console.error('[simulatePlayoffRound]', e);
+        bump();
+        return [];
+      }
+    },
+    advancePhase(phase) {
+      try {
+        advanceSeasonPhase(league, phase);
+        bump();
+      } catch (e) {
+        console.error('[advancePhase]', e);
+        bump();
+      }
+    },
+    getPlayoff() {
+      return league.playoff || null;
+    },
+    getStandings() {
+      return league.standings || [];
     },
     getRawLeague() {
       return league;
