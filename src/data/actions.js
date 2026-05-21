@@ -72,6 +72,12 @@ export function extendContract(league, teamId, playerId, terms) {
   if (!player) throw new Error(`Player ${playerId} is not on ${team.name}.`);
   if (!player.contract.extensionEligible) throw new Error(`${player.firstName} ${player.lastName} is not extension eligible.`);
 
+  // Player acceptance logic — compare offer to market expectations
+  const acceptance = evaluateExtensionOffer(player, terms);
+  if (!acceptance.accepted) {
+    return { rejected: true, reason: acceptance.reason, player: { firstName: player.firstName, lastName: player.lastName } };
+  }
+
   player.contract = {
     ...player.contract,
     ...terms,
@@ -81,6 +87,62 @@ export function extendContract(league, teamId, playerId, terms) {
   refreshContractSummary(team);
   recordAutosave(league, "contract", { teamId, playerId, action: "extend" });
   return player.contract;
+}
+
+/**
+ * Evaluate whether a player accepts an extension offer based on their market value,
+ * age, and overall rating. Players reject offers significantly below market.
+ */
+function evaluateExtensionOffer(player, terms) {
+  const marketSalary = estimatePlayerMarketSalary(player);
+  const offerRatio = terms.salary / marketSalary;
+  const yearsOffered = terms.yearsRemaining || 1;
+
+  // Young stars want long-term security
+  const yearsPenalty = (player.age <= 26 && (player.potentialStars || 1) >= 4 && yearsOffered < 3) ? -0.10 : 0;
+
+  // Aging players are more willing to take discounts for guaranteed years
+  const ageBonus = player.age >= 31 ? 0.10 : player.age >= 29 ? 0.05 : 0;
+
+  // High OVR players have more leverage
+  const leveragePenalty = player.overall >= 85 ? -0.08 : player.overall >= 78 ? -0.04 : 0;
+
+  const effectiveRatio = offerRatio + yearsPenalty + ageBonus + leveragePenalty;
+
+  if (effectiveRatio >= 0.85) {
+    return { accepted: true };
+  } else if (effectiveRatio >= 0.70) {
+    // Coin flip range — player considers it
+    const acceptChance = (effectiveRatio - 0.70) / 0.15; // 0 at 0.70, 1 at 0.85
+    const roll = Math.random();
+    if (roll < acceptChance) return { accepted: true };
+    return { accepted: false, reason: `Wants closer to ${formatSalaryForRejection(marketSalary)}/yr` };
+  } else if (effectiveRatio >= 0.50) {
+    return { accepted: false, reason: `Offer too low — expects at least ${formatSalaryForRejection(marketSalary * 0.85)}/yr` };
+  } else {
+    return { accepted: false, reason: `Insulting offer — market value is ${formatSalaryForRejection(marketSalary)}/yr` };
+  }
+}
+
+function estimatePlayerMarketSalary(player) {
+  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(player.position) ? 1.20 : 1;
+  const ageFactor =
+    player.age >= 34 ? 0.65 :
+    player.age >= 31 ? 0.85 :
+    player.age >= 28 ? 0.95 :
+    1.05;
+  const base =
+    player.overall >= 88 ? 28_000_000 :
+    player.overall >= 82 ? 18_000_000 :
+    player.overall >= 76 ? 10_000_000 :
+    player.overall >= 70 ? 6_000_000 :
+    player.overall >= 62 ? 3_000_000 :
+    2_000_000;
+  return Math.round(base * premium * ageFactor);
+}
+
+function formatSalaryForRejection(salary) {
+  return `$${(salary / 1_000_000).toFixed(1)}M`;
 }
 
 export function renegotiateContract(league, teamId, playerId, newSalary, newYears) {

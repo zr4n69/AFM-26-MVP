@@ -1,7 +1,38 @@
 import { useState } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, ColorBlock, OvrPill, TradeChip, formatM } from '../components/Chrome.jsx';
+import { Topbar, ColorBlock, OvrPill, Stars, TradeChip, formatM } from '../components/Chrome.jsx';
 import { isTradeWindowOpen } from '../data/bridge.js';
+
+function tradeStatLine(p) {
+  const s = p.careerStats || {};
+  const pos = p._engine?.position || p.pos;
+  if (pos === 'QB') {
+    const yds = s.passingYards || 0;
+    const td = s.passingTouchdowns || 0;
+    return yds > 0 ? `${yds} yds, ${td} TD` : null;
+  }
+  if (pos === 'RB') {
+    const yds = s.rushingYards || 0;
+    const td = s.rushingTouchdowns || 0;
+    return yds > 0 ? `${yds} rush, ${td} TD` : null;
+  }
+  if (pos === 'WR' || pos === 'TE') {
+    const yds = s.receivingYards || 0;
+    const td = s.receivingTouchdowns || 0;
+    return yds > 0 ? `${yds} rec, ${td} TD` : null;
+  }
+  if (pos === 'EDGE' || pos === 'DL' || pos === 'LB') {
+    const tkl = s.tackles || 0;
+    const sacks = s.sacks || 0;
+    return tkl > 0 ? `${tkl} tkl, ${sacks} sck` : null;
+  }
+  if (pos === 'CB' || pos === 'S') {
+    const tkl = s.tackles || 0;
+    const ints = s.interceptions || 0;
+    return tkl > 0 ? `${tkl} tkl, ${ints} INT` : null;
+  }
+  return null;
+}
 
 export function ScreenTrades({ onNav }) {
   const { userTeam, teams, trades, cpuTrades, draft, actions, _engine } = useLeague();
@@ -140,7 +171,7 @@ export function ScreenTrades({ onNav }) {
                   <div style={{ border: '1px dashed var(--line)', borderRadius: 6, padding: 10, minHeight: 160 }}>
                     {givePlayers.map(id => {
                       const p = findPlayer(userTeam, id);
-                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={`OVR ${p.ovr}`} onRemove={() => setGivePlayers(givePlayers.filter(x => x !== id))} /> : null;
+                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={`OVR ${p.ovr} · Age ${p.age} · ${'★'.repeat(p.potential || 0)}`} onRemove={() => setGivePlayers(givePlayers.filter(x => x !== id))} /> : null;
                     })}
                     {givePicks.map(id => {
                       const pk = findPick(id);
@@ -163,7 +194,7 @@ export function ScreenTrades({ onNav }) {
                   <div style={{ border: '1px dashed var(--line)', borderRadius: 6, padding: 10, minHeight: 160 }}>
                     {getPlayers.map(id => {
                       const p = findPlayer(targetTeam, id);
-                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={`OVR ${p.ovr}`} highlight onRemove={() => setGetPlayers(getPlayers.filter(x => x !== id))} /> : null;
+                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={`OVR ${p.ovr} · Age ${p.age} · ${'★'.repeat(p.potential || 0)}`} highlight onRemove={() => setGetPlayers(getPlayers.filter(x => x !== id))} /> : null;
                     })}
                     {getPicks.map(id => {
                       const pk = findPick(id);
@@ -196,8 +227,9 @@ export function ScreenTrades({ onNav }) {
                     <div>
                       <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>CPU Likelihood</div>
                       <div style={{ font: '700 18px var(--font-display)', marginTop: 2 }}>
-                        {theirValue === 0 ? '—' : myValue / theirValue >= 0.9 ? 'Likely' : myValue / theirValue >= 0.8 ? 'Maybe' : 'Unlikely'}
+                        {theirValue === 0 ? '—' : myValue / theirValue >= 1.0 ? 'Very Likely' : myValue / theirValue >= 0.85 ? 'Likely' : myValue / theirValue >= 0.7 ? 'Possible' : myValue / theirValue >= 0.55 ? 'Unlikely' : 'No Chance'}
                       </div>
+                      <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>Context-aware: needs, scheme, cap</div>
                     </div>
                   </div>
                 </>
@@ -287,12 +319,12 @@ export function ScreenTrades({ onNav }) {
         {showPlayerPicker && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.45)', display: 'grid', placeItems: 'center' }}
             onClick={() => setShowPlayerPicker(null)}>
-            <div className="card" style={{ width: 500, maxHeight: '70vh', animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
+            <div className="card" style={{ width: 640, maxWidth: '95vw', maxHeight: '70vh', animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
               <div className="card-h"><h2>{showPlayerPicker === 'give' ? 'Add from your roster' : `Add from ${targetTeam?.city || 'partner'}`}</h2></div>
               <div className="card-b tight" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
                 {/* Players */}
                 <table className="tbl">
-                  <thead><tr><th>Player</th><th>Pos</th><th className="num">OVR</th><th className="num">Cap</th><th></th></tr></thead>
+                  <thead><tr><th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th><th>Pot.</th><th className="num">Cap</th><th className="col-mobile-hide">Stats</th><th></th></tr></thead>
                   <tbody>
                     {(showPlayerPicker === 'give' ? userTeam : targetTeam)?.roster
                       ?.filter(p => !(showPlayerPicker === 'give' ? givePlayers : getPlayers).includes(p.id))
@@ -302,8 +334,11 @@ export function ScreenTrades({ onNav }) {
                         <tr key={p.id}>
                           <td><strong>{p.name}</strong></td>
                           <td className="mono">{p.pos}</td>
+                          <td className="num">{p.age}</td>
                           <td className="num"><OvrPill ovr={p.ovr} /></td>
+                          <td><Stars n={p.potential} /></td>
                           <td className="num mono">{formatM(p.cap)}</td>
+                          <td className="muted col-mobile-hide" style={{ fontSize: 11 }}>{tradeStatLine(p) || '—'}</td>
                           <td>
                             <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => {
                               if (showPlayerPicker === 'give') setGivePlayers([...givePlayers, p.id]);

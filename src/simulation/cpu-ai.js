@@ -165,9 +165,9 @@ export function convertProspectToPlayer(league, prospect, teamId, rng) {
 
   const ceiling = potentialCeilings[potentialStars];
 
-  // Rookie OVR: random between 55 and their ceiling, weighted toward projected rating
-  // They can start way below potential or close to it
-  const floorOvr = 55;
+  // Rookie OVR: top-16 picks floor at 60, others floor at 55
+  const pickNumber = prospect.expectedDraftPosition ?? 999;
+  const floorOvr = pickNumber <= 16 ? 60 : 55;
   const maxStartOvr = Math.min(ceiling, projectedMid + rng.int(-2, 5));
   const overall = Math.max(floorOvr, Math.min(ceiling, rng.int(floorOvr, maxStartOvr)));
 
@@ -330,7 +330,10 @@ function executeCpuExtensions(team, rng) {
   for (const player of eligible) {
     const years = rng.int(2, 5);
     const salary = estimateSalary(player);
-    player.contract = createContractFromSalary(salary, years);
+    const contract = createContractFromSalary(salary, years);
+    if (team.contractSummary.capSpace < contract.capHit) continue;
+    player.contract = contract;
+    team.contractSummary.capSpace -= contract.capHit;
     extensions.push({ teamId: team.id, playerId: player.id, salary, years });
   }
   return extensions;

@@ -1,11 +1,44 @@
 import { useState } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, OvrPill, Avatar, formatM } from '../components/Chrome.jsx';
+import { Topbar, OvrPill, Stars, Avatar, formatM } from '../components/Chrome.jsx';
 import { bridgeFreeAgent } from '../data/bridge.js';
 import { estimateMarketSalary } from '@engine/simulation/free-agency.js';
 
 const OFF_POS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C'];
 const DEF_POS = ['EDGE', 'DL', 'LB', 'CB', 'S'];
+
+function statLine(p) {
+  const s = { ...(p.careerStats || {}), ...(p.stats || {}) };
+  const pos = p._engine?.position || p.pos;
+  if (pos === 'QB') {
+    const yds = s.passingYards || 0;
+    const td = s.passingTouchdowns || 0;
+    const int = s.interceptionsThrown || 0;
+    return yds > 0 ? `${yds} yds, ${td} TD, ${int} INT` : null;
+  }
+  if (pos === 'RB') {
+    const yds = s.rushingYards || 0;
+    const td = s.rushingTouchdowns || 0;
+    return yds > 0 ? `${yds} rush yds, ${td} TD` : null;
+  }
+  if (pos === 'WR' || pos === 'TE') {
+    const yds = s.receivingYards || 0;
+    const td = s.receivingTouchdowns || 0;
+    return yds > 0 ? `${yds} rec yds, ${td} TD` : null;
+  }
+  if (pos === 'EDGE' || pos === 'DL' || pos === 'LB') {
+    const tkl = s.tackles || 0;
+    const sacks = s.sacks || 0;
+    return tkl > 0 ? `${tkl} tkl, ${sacks} sck` : null;
+  }
+  if (pos === 'CB' || pos === 'S') {
+    const tkl = s.tackles || 0;
+    const ints = s.interceptions || 0;
+    const pd = s.passDeflections || 0;
+    return tkl > 0 ? `${tkl} tkl, ${ints} INT, ${pd} PD` : null;
+  }
+  return null;
+}
 
 export function ScreenFreeAgency({ onNav }) {
   const { userTeam, freeAgents, actions } = useLeague();
@@ -72,9 +105,9 @@ export function ScreenFreeAgency({ onNav }) {
             <div className="delta">Available to spend</div>
           </div>
           <div className="stat-tile" style={rosterFull ? { borderColor: 'var(--neg)' } : {}}>
-            <div className="label">Roster Spots</div>
-            <div className="value" style={rosterFull ? { color: 'var(--neg)' } : {}}>{rosterSpots}<span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
-            <div className={`delta ${rosterFull ? 'neg' : ''}`}>{rosterFull ? 'Release a player first!' : 'Active limit'}</div>
+            <div className="label">Roster Size</div>
+            <div className="value" style={rosterFull ? { color: 'var(--neg)' } : {}}>{rosterCount}<span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
+            <div className={`delta ${rosterFull ? 'neg' : ''}`}>{rosterFull ? 'Release a player first!' : `${rosterSpots} spot${rosterSpots === 1 ? '' : 's'} open`}</div>
           </div>
           <div className="stat-tile">
             <div className="label">Free Agents</div>
@@ -198,18 +231,21 @@ export function ScreenFreeAgency({ onNav }) {
               <thead>
                 <tr>
                   <th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th>
-                  <th className="num">Est. Value</th><th>Traits</th><th></th>
+                  <th>Potential</th><th className="num">Est. Value</th><th className="col-mobile-hide">Stats</th><th></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.slice(0, 50).map(p => (
+                {filtered.slice(0, 50).map(p => {
+                    const stats = statLine(p);
+                    return (
                     <tr key={p.id}>
                       <td><strong>{p.name}</strong></td>
                       <td className="mono"><strong>{p.pos}</strong></td>
                       <td className="num">{p.age}</td>
                       <td className="num"><OvrPill ovr={p.ovr} /></td>
+                      <td><Stars n={p.potential} /></td>
                       <td className="num mono">{formatM(p.marketValue)}/yr</td>
-                      <td className="muted" style={{ fontSize: 12 }}>{p.traits.slice(0, 2).join(', ') || '—'}</td>
+                      <td className="muted col-mobile-hide" style={{ fontSize: 11 }}>{stats || '—'}</td>
                       <td>
                         <button className="btn" style={{ padding: '4px 12px', fontSize: 11 }}
                           disabled={rosterFull}
@@ -218,7 +254,8 @@ export function ScreenFreeAgency({ onNav }) {
                         </button>
                       </td>
                     </tr>
-                ))}
+                    );
+                })}
               </tbody>
             </table>
           </div>
@@ -231,12 +268,16 @@ export function ScreenFreeAgency({ onNav }) {
             <div className="card" style={{ width: 400, animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
               <div className="card-h"><h2>Offer to {offerTarget.name}</h2></div>
               <div className="card-b">
-                <div style={{ display: 'flex', gap: 12, marginBottom: 12, fontSize: 13 }}>
+                <div style={{ display: 'flex', gap: 12, marginBottom: 12, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span className="mono">{offerTarget.pos}</span>
                   <span>Age {offerTarget.age}</span>
                   <OvrPill ovr={offerTarget.ovr} />
+                  <Stars n={offerTarget.potential} />
                   <span className="muted">Est. {formatM(offerTarget.marketValue)}/yr</span>
                 </div>
+                {statLine(offerTarget) && (
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>Career: {statLine(offerTarget)}</div>
+                )}
 
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Salary ($/yr in millions)</label>

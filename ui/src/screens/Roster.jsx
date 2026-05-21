@@ -8,13 +8,19 @@ const DEF_POS = ['EDGE', 'DT', 'LB', 'CB', 'S'];
 const ST_POS = ['K', 'P', 'LS'];
 
 export function ScreenRoster({ onNav }) {
-  const { userTeam } = useLeague();
+  const { userTeam, actions } = useLeague();
   const team = userTeam;
   if (!team) return null;
 
   const [filter, setFilter] = useState('All');
   const [sortKey, setSortKey] = useState('ovr');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [cutTarget, setCutTarget] = useState(null);
+
+  function handleRelease(playerId) {
+    actions.releasePlayer(team.id, playerId);
+    setSelectedPlayer(null);
+  }
 
   let roster = [...team.roster];
   if (filter === 'Offense') roster = roster.filter(p => OFF_POS.includes(p.pos));
@@ -70,7 +76,7 @@ export function ScreenRoster({ onNav }) {
         </div>
 
         <div className="card">
-          <div className="card-h" style={{ gap: 16 }}>
+          <div className="card-h" style={{ gap: 16, flexWrap: 'wrap' }}>
             <div className="tabs" style={{ border: 'none', margin: 0 }}>
               {FILTERS.map(f => (
                 <div key={f} className={`tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)} style={{ borderBottom: 'none', paddingBottom: 8 }}>{f}</div>
@@ -88,14 +94,14 @@ export function ScreenRoster({ onNav }) {
               <thead>
                 <tr>
                   <th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th><th>Pot</th>
-                  <th>Status</th><th>Fatigue</th><th>Traits</th>
-                  <th className="num">Yrs</th><th className="num">Cap</th>
+                  <th>Status</th><th className="col-mobile-hide">Fatigue</th><th className="col-mobile-hide">Traits</th>
+                  <th className="num col-mobile-hide">Yrs</th><th className="num">Cap</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {roster.map(p => (
-                  <tr key={p.id} onClick={() => setSelectedPlayer(p)} style={{ cursor: 'pointer' }}>
-                    <td>
+                  <tr key={p.id} style={{ cursor: 'pointer' }}>
+                    <td onClick={() => setSelectedPlayer(p)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Avatar player={p} team={team} size={30} />
                         <div>
@@ -104,15 +110,19 @@ export function ScreenRoster({ onNav }) {
                         </div>
                       </div>
                     </td>
-                    <td className="mono"><strong>{p.pos}</strong></td>
-                    <td className="num">{p.age}</td>
-                    <td className="num"><OvrPill ovr={p.ovr} /></td>
-                    <td><Stars n={p.potential} /></td>
-                    <td><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
-                    <td><FatigueBar value={p.fatigue} /></td>
-                    <td className="muted" style={{ fontSize: 11 }}>{p.traits.join(' · ') || '—'}</td>
-                    <td className="num mono">{p.years}</td>
-                    <td className="num mono">{formatM(p.cap)}</td>
+                    <td className="mono" onClick={() => setSelectedPlayer(p)}><strong>{p.pos}</strong></td>
+                    <td className="num" onClick={() => setSelectedPlayer(p)}>{p.age}</td>
+                    <td className="num" onClick={() => setSelectedPlayer(p)}><OvrPill ovr={p.ovr} /></td>
+                    <td onClick={() => setSelectedPlayer(p)}><Stars n={p.potential} /></td>
+                    <td onClick={() => setSelectedPlayer(p)}><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
+                    <td className="col-mobile-hide" onClick={() => setSelectedPlayer(p)}><FatigueBar value={p.fatigue} /></td>
+                    <td className="muted col-mobile-hide" style={{ fontSize: 11 }} onClick={() => setSelectedPlayer(p)}>{p.traits.join(' · ') || '—'}</td>
+                    <td className="num mono col-mobile-hide" onClick={() => setSelectedPlayer(p)}>{p.years}</td>
+                    <td className="num mono" onClick={() => setSelectedPlayer(p)}>{formatM(p.cap)}</td>
+                    <td>
+                      <button className="btn" style={{ padding: '3px 8px', fontSize: 10, color: 'var(--neg)', borderColor: 'var(--neg)' }}
+                        onClick={(e) => { e.stopPropagation(); setCutTarget(p); }}>Cut</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -122,19 +132,47 @@ export function ScreenRoster({ onNav }) {
 
         {/* Player Detail Modal */}
         {selectedPlayer && (
-          <PlayerDetailModal player={selectedPlayer} team={team} onClose={() => setSelectedPlayer(null)} />
+          <PlayerDetailModal player={selectedPlayer} team={team} onClose={() => setSelectedPlayer(null)} onRelease={handleRelease} />
+        )}
+
+        {/* Quick Cut confirmation */}
+        {cutTarget && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.5)', display: 'grid', placeItems: 'center' }}
+            onClick={() => setCutTarget(null)}>
+            <div className="card" style={{ width: 380, maxWidth: '90vw', animation: 'fadeIn .15s ease-out' }}
+              onClick={e => e.stopPropagation()}>
+              <div className="card-h"><h2>Release {cutTarget.name}?</h2></div>
+              <div className="card-b">
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 13 }}>
+                  <span className="mono">{cutTarget.pos}</span>
+                  <span>Age {cutTarget.age}</span>
+                  <OvrPill ovr={cutTarget.ovr} />
+                  <span className="muted">{formatM(cutTarget.cap)}/yr</span>
+                </div>
+                <div className="muted" style={{ fontSize: 12, marginBottom: 16 }}>
+                  Dead money: {formatM(cutTarget._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(cutTarget._engine?.contract?.releaseImpact?.capSavings ?? 0)}
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <button className="btn" onClick={() => setCutTarget(null)}>Cancel</button>
+                  <button className="btn" style={{ background: 'var(--neg)', color: 'white', borderColor: 'var(--neg)' }}
+                    onClick={() => { handleRelease(cutTarget.id); setCutTarget(null); }}>Confirm Release</button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>
   );
 }
 
-function PlayerDetailModal({ player, team, onClose }) {
+function PlayerDetailModal({ player, team, onClose, onRelease }) {
   const p = player;
   const attrs = p.attrs || {};
   const careerStats = p.careerStats || {};
   const seasonStats = p._engine?.stats || {};
   const awards = p._engine?.awards || [];
+  const [confirmRelease, setConfirmRelease] = useState(false);
 
   const ratingLabels = {
     awareness: 'Awareness', stamina: 'Stamina', discipline: 'Discipline',
@@ -166,7 +204,7 @@ function PlayerDetailModal({ player, team, onClose }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.5)', display: 'grid', placeItems: 'center' }}
       onClick={onClose}>
-      <div className="card" style={{ width: 560, maxHeight: '80vh', overflowY: 'auto', animation: 'fadeIn .15s ease-out' }}
+      <div className="card" style={{ width: '95vw', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', animation: 'fadeIn .15s ease-out' }}
         onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div style={{
@@ -190,7 +228,7 @@ function PlayerDetailModal({ player, team, onClose }) {
 
         <div className="card-b" style={{ padding: '16px 24px' }}>
           {/* Contract Info */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 20, textAlign: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12, marginBottom: 20, textAlign: 'center' }}>
             <div><div className="muted" style={{ fontSize: 11 }}>Salary</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.salary)}/yr</div></div>
             <div><div className="muted" style={{ fontSize: 11 }}>Cap Hit</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.cap)}/yr</div></div>
             <div><div className="muted" style={{ fontSize: 11 }}>Years Left</div><div style={{ fontWeight: 700 }}>{p.years}</div></div>
@@ -276,9 +314,25 @@ function PlayerDetailModal({ player, team, onClose }) {
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8 }}>
-            <button className="btn" onClick={onClose}>Close</button>
-          </div>
+          {confirmRelease ? (
+            <div style={{ background: '#FFF5F5', borderRadius: 6, padding: '12px 14px', border: '1px solid #FEE2E2' }}>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>Release {p.name}?</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
+                Dead money: {formatM(p._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(p._engine?.contract?.releaseImpact?.capSavings ?? 0)}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn" style={{ background: 'var(--neg)', color: 'white', borderColor: 'var(--neg)' }}
+                  onClick={() => onRelease(p.id)}>Confirm Release</button>
+                <button className="btn" onClick={() => setConfirmRelease(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8 }}>
+              <button className="btn" style={{ color: 'var(--neg)', borderColor: 'var(--neg)' }}
+                onClick={() => setConfirmRelease(true)}>Release Player</button>
+              <button className="btn" onClick={onClose}>Close</button>
+            </div>
+          )}
         </div>
       </div>
     </div>

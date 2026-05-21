@@ -158,10 +158,19 @@ export function ScreenContracts({ onNav }) {
 
         {/* Extension result banner */}
         {extResult && (
-          <div className="card" style={{ marginTop: 14 }}>
+          <div className="card" style={{ marginTop: 14, borderColor: extResult.rejected ? 'var(--neg)' : undefined }}>
             <div className="card-b" style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="chip pos" style={{ fontSize: 11 }}>✓ Extended</span>
-              <span><strong>{extResult.name}</strong> — {formatM(extResult.salary)}/yr for {extResult.years} years</span>
+              {extResult.rejected ? (
+                <>
+                  <span className="chip" style={{ fontSize: 11, background: 'var(--neg)', color: 'white' }}>REJECTED</span>
+                  <span><strong>{extResult.name}</strong> — {extResult.reason}</span>
+                </>
+              ) : (
+                <>
+                  <span className="chip pos" style={{ fontSize: 11 }}>ACCEPTED</span>
+                  <span><strong>{extResult.name}</strong> — {formatM(extResult.salary)}/yr for {extResult.years} years</span>
+                </>
+              )}
               <span style={{ flex: 1 }} />
               <button className="btn" style={{ padding: '4px 10px', fontSize: 11 }} onClick={() => setExtResult(null)}>Dismiss</button>
             </div>
@@ -221,7 +230,7 @@ export function ScreenContracts({ onNav }) {
                     try {
                       const salary = extSalary * 1_000_000;
                       const guaranteedAmount = Math.round(salary * extYears * 0.2);
-                      actions.extendContract(team.id, extTarget.id, {
+                      const result = actions.extendContract(team.id, extTarget.id, {
                         salary,
                         yearsRemaining: extYears,
                         guaranteedAmount,
@@ -229,7 +238,11 @@ export function ScreenContracts({ onNav }) {
                         bonusExpectation: null,
                         capHit: salary + Math.round(guaranteedAmount / extYears),
                       });
-                      setExtResult({ name: extTarget.name, salary: extSalary, years: extYears });
+                      if (result?.rejected) {
+                        setExtResult({ name: extTarget.name, rejected: true, reason: result.reason });
+                      } else {
+                        setExtResult({ name: extTarget.name, salary: extSalary, years: extYears });
+                      }
                       setExtTarget(null);
                     } catch (err) {
                       alert(err.message);
