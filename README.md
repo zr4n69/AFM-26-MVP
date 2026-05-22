@@ -6,10 +6,10 @@ The MVP target is a fictional, compressed league with NFL-inspired structure, fu
 
 ## Stage Progress
 
-- Stage 1: Game design rules - drafted in `docs/stage-1-game-design-rules.md`
-- Stage 2: Data layer - implemented in `docs/stage-2-data-layer.md`
-- Stage 3: Simulation engine - awaiting clearance
-- Stage 4+: Player-facing web MVP - awaiting clearance
+- Stage 1: Game design rules - ✅ COMPLETE - drafted in `docs/stage-1-game-design-rules.md`
+- Stage 2: Data layer - ✅ COMPLETE - implemented in `docs/stage-2-data-layer.md`
+- Stage 3: Simulation engine - ✅ COMPLETE - 48-season stress test passing, roster auto-repair implemented
+- Stage 4+: Player-facing web MVP - 🚀 IN PROGRESS
 
 ## Development
 

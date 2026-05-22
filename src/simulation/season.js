@@ -28,7 +28,7 @@ import {
   simulateRegularSeason
 } from "./engine.js";
 import { runFreeAgencyPeriod } from "./free-agency.js";
-import { executeCpuAutoDraft, executeCpuOffseasonSignings, validateRosterCompliance } from "./cpu-ai.js";
+import { executeCpuAutoDraft, executeCpuOffseasonSignings, validateRosterCompliance, repairRosterCompliance } from "./cpu-ai.js";
 import { calculateTradeValue } from "./trade-value.js";
 
 export function runSeasonReview(league) {
@@ -374,8 +374,14 @@ export function advanceToNextSeason(league) {
 
   const violations = validateRosterCompliance(league);
   if (violations.length > 0) {
-    // Log but don't crash — let the season proceed with minor gaps
-    console.warn(`Roster violations at season start: ${violations.map(v => `${v.teamName} missing ${v.position}`).join(', ')}`);
+    const repaired = repairRosterCompliance(league);
+    if (repaired.length > 0) {
+      console.log(`Roster violations repaired: ${repaired.map(r => `${r.teamName} signed ${r.position} (OVR ${r.overall})`).join(', ')}`);
+    }
+    const remaining = validateRosterCompliance(league);
+    if (remaining.length > 0) {
+      console.warn(`Unrepaired roster violations at season start: ${remaining.map(v => `${v.teamName} missing ${v.position}`).join(', ')}`);
+    }
   }
 
   advanceSeasonPhase(league, PHASES.PRESEASON);

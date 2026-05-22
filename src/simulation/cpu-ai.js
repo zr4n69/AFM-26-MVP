@@ -279,6 +279,28 @@ export function validateRosterCompliance(league) {
   return violations;
 }
 
+export function repairRosterCompliance(league) {
+  const repaired = [];
+  for (const team of league.teams) {
+    const template = effectiveRosterTemplate(team.strategy);
+    for (const [position, targetCount] of Object.entries(template)) {
+      const current = team.roster.filter((p) => p.position === position).length;
+      const minRequired = Math.min(targetCount, 1);
+      if (current < minRequired) {
+        const needed = minRequired - current;
+        const available = league.freeAgents.filter((p) => p.position === position).sort((a, b) => b.overall - a.overall);
+        for (let i = 0; i < needed && available.length > 0; i++) {
+          const player = available.shift();
+          team.roster.push(player);
+          league.freeAgents = league.freeAgents.filter((p) => p.id !== player.id);
+          repaired.push({ teamId: team.id, teamName: team.name, position, playerId: player.id, overall: player.overall });
+        }
+      }
+    }
+  }
+  return repaired;
+}
+
 function executeCpuReleases(team, league, rng) {
   const releases = [];
   const capPressure = team.contractSummary.capSpace < 0;
