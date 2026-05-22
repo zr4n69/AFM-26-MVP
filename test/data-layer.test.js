@@ -54,7 +54,7 @@ test("createLeague includes Stage 1 system state homes", () => {
   const league = createLeague("stage-1-system-state");
 
   assert.equal(league.draft.picks.length, LEAGUE_RULES.draftRounds * LEAGUE_RULES.picksPerRound);
-  assert.equal(league.draft.rookieContractScale[0].salary, 10_000_000);
+  assert.equal(league.draft.rookieContractScale[0].salary, 22_000_000);
   assert.ok(league.draft.rookieContractScale.at(-1).salary >= 1_000_000);
   assert.equal(league.draft.undraftedProspectIds.length, LEAGUE_RULES.draftClassSize);
   assert.ok(league.scouting.currencyByTeamId[league.teams[0].id] >= 0);

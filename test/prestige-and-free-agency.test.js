@@ -65,10 +65,24 @@ test("prestigeInfluence scales from low in season 1 to full by season 6", () => 
   assert.equal(prestigeInfluence(10), 1.0, "should cap at 1.0");
 });
 
+// Release lowest-rated players from each team to open roster spots for FA testing.
+// After runOffseason the auto-draft fills teams to the 55-player limit, leaving no
+// room for collectOffers to add more. This helper creates realistic vacancy.
+function openRosterSpotsForFATest(league, slotsPerTeam = 5) {
+  for (const team of league.teams) {
+    const sorted = [...team.roster].sort((a, b) => a.overall - b.overall);
+    const toRelease = sorted.slice(0, slotsPerTeam);
+    const releaseIds = new Set(toRelease.map((p) => p.id));
+    team.roster = team.roster.filter((p) => !releaseIds.has(p.id));
+    league.freeAgents.push(...toRelease);
+  }
+}
+
 test("runFreeAgencyPeriod signs players competitively with prestige and contract factors", () => {
   const league = createLeague("fa-test");
   simulateFullSeason(league);
   runOffseason(league, { skipFreeAgency: true });
+  openRosterSpotsForFATest(league);
 
   const faBefore = league.freeAgents.length;
   assert.ok(faBefore > 0, "should have free agents after offseason");
@@ -87,6 +101,7 @@ test("high prestige teams attract more free agents than low prestige teams", () 
     const league = createLeague("fa-prestige-" + i);
     simulateFullSeason(league);
     runOffseason(league, { skipFreeAgency: true });
+    openRosterSpotsForFATest(league);
     const result = runFreeAgencyPeriod(league);
 
     for (const signing of result.signings) {
