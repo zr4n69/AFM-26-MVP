@@ -13,13 +13,13 @@ import {
 import { createRng, makeId } from "./random.js";
 
 const CITY_NAMES = Object.freeze([
-  "Portland", "Austin", "Columbus", "Sacramento", "Orlando", "Memphis", "Omaha", "Raleigh",
-  "Salt Lake", "Milwaukee", "San Antonio", "Louisville", "Boise", "Birmingham", "Albuquerque", "Providence"
+  "Florida", "Austin", "Columbus", "Sacramento", "Orlando", "Memphis", "Omaha", "Raleigh",
+  "Salt Lake", "Milwaukee", "San Antonio", "Louisville", "Boise", "Colorado", "Albuquerque", "Providence"
 ]);
 
 const TEAM_NAMES = Object.freeze([
-  "Stags", "Founders", "Comets", "Ridgebacks", "Pilots", "Kings", "Steel", "Redwoods",
-  "Summit", "Harbors", "Marshals", "Thoroughbreds", "Cutthroats", "Vulcans", "Roadrunners", "Anchors"
+  "Buccaneers", "Founders", "Rockets", "Miners", "Pilots", "Kings", "Steel", "Redwoods",
+  "Summit", "Harbors", "Marshals", "Saints", "Tigers", "Vulcans", "Rogues", "Anchors"
 ]);
 
 const FIRST_NAMES = Object.freeze([
@@ -33,10 +33,10 @@ const LAST_NAMES = Object.freeze([
 ]);
 
 export const FIXED_TEAM_PRESTIGE = Object.freeze([
-  3.2, // Portland Stags       – Competitive
+  3.2, // Florida Buccaneers   - Competitive
   4.5, // Austin Founders      – Elite
-  2.8, // Columbus Comets      – Average
-  3.8, // Sacramento Ridgebacks– Contender
+  2.8, // Columbus Rockets     - Average
+  3.8, // Sacramento Miners    - Contender
   2.2, // Orlando Pilots       – Average
   4.2, // Memphis Kings        – Contender
   3.0, // Omaha Steel          – Competitive
@@ -44,10 +44,10 @@ export const FIXED_TEAM_PRESTIGE = Object.freeze([
   1.8, // Salt Lake Summit     – Rebuilding
   4.8, // Milwaukee Harbors    – Elite
   2.5, // San Antonio Marshals – Below Average
-  3.8, // Louisville Thoroughbreds – Contender
-  2.0, // Boise Cutthroats     – Rebuilding
-  4.0, // Birmingham Vulcans   – Contender
-  3.2, // Albuquerque Roadrunners – Competitive
+  3.8, // Louisville Saints    - Contender
+  2.0, // Boise Tigers         - Rebuilding
+  4.0, // Colorado Vulcans     - Contender
+  3.2, // Albuquerque Rogues   - Competitive
   2.8, // Providence Anchors   – Average
 ]);
 

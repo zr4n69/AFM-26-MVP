@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Colorado Vulcans logo">
+  <title>Colorado Vulcans</title>
+  <g stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 52 23 16h18l17 36Z" fill="#8A8F94"/>
+      <path d="M18 52h46L47 34 39 48 31 27Z" fill="#FFFFFF"/>
+      <path d="M24 16h17l-8 15Z" fill="#E15A2A"/>
+      <path d="M30 10c0-6 7-6 7 0M38 10c3-7 11-4 8 2M27 11c-3-5-9-4-8 2" fill="none" stroke="#E15A2A" stroke-width="3"/>
+      <path d="M22 42h28" stroke="#2D3033" stroke-width="4"/>
+    </g>
+</svg>

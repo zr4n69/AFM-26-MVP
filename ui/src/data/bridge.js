@@ -7,22 +7,22 @@ const ST_POSITIONS = ['K', 'P', 'RET'];
 const BASE = import.meta.env.BASE_URL;
 
 const TEAM_VISUALS = {
-  'Portland Stags':       { abbr: 'POR',  conf: 'West',  primary: '#A8322B', secondary: '#5A5754', tertiary: '#7A4B2A', logo: `${BASE}logos/POR.svg` },
-  'Austin Founders':      { abbr: 'AUS', conf: 'East',  primary: '#D9C9A8', secondary: '#1B3A6B', tertiary: '#A8A8AC', logo: `${BASE}logos/AUS.svg` },
-  'Columbus Comets':      { abbr: 'COL', conf: 'East',  primary: '#E8631A', secondary: '#6B6F76', tertiary: '#F4F4F4', logo: `${BASE}logos/COL.svg` },
-  'Sacramento Ridgebacks': { abbr: 'SAC',  conf: 'West',  primary: '#3E1F6B', secondary: '#0B0B12', tertiary: '#7DC8E8', logo: `${BASE}logos/SAC.svg` },
-  'Orlando Pilots':       { abbr: 'ORL',  conf: 'West',  primary: '#E8851A', secondary: '#F2C94C', tertiary: '#C0392B', logo: `${BASE}logos/ORL.svg` },
-  'Memphis Kings':        { abbr: 'MEM',  conf: 'West',  primary: '#0E0E10', secondary: '#F2F2F2', tertiary: '#D4AF37', logo: `${BASE}logos/MEM.svg` },
-  'Omaha Steel':          { abbr: 'OMA', conf: 'North', primary: '#5A3A22', secondary: '#1F3B2D', tertiary: '#F4EFE6', logo: `${BASE}logos/OMA.svg` },
-  'Raleigh Redwoods':     { abbr: 'RAL', conf: 'North', primary: '#F4EFE6', secondary: '#C9A227', tertiary: '#F2C94C', logo: `${BASE}logos/RAL.svg` },
-  'Salt Lake Summit':     { abbr: 'SLC',  conf: 'North', primary: '#0E0E10', secondary: '#E8C547', tertiary: '#C0392B', logo: `${BASE}logos/SLC.svg` },
-  'Milwaukee Harbors':    { abbr: 'MIL', conf: 'North', primary: '#B11226', secondary: '#E8B042', tertiary: '#1A1A1A', logo: `${BASE}logos/MIL.svg` },
-  'San Antonio Marshals': { abbr: 'SA',  conf: 'East',  primary: '#13294B', secondary: '#A8322B', tertiary: '#F4F4F4', logo: `${BASE}logos/SA.svg` },
-  'Louisville Thoroughbreds': { abbr: 'LOU', conf: 'East', primary: '#7A4B2A', secondary: '#F4EAD2', tertiary: '#8B2E1F', logo: `${BASE}logos/LOU.svg` },
-  'Boise Cutthroats':     { abbr: 'BOI',  conf: 'South', primary: '#A8322B', secondary: '#E8851A', tertiary: '#F4F4F4', logo: `${BASE}logos/BOI.svg` },
-  'Birmingham Vulcans':   { abbr: 'BIR', conf: 'South', primary: '#0F4C81', secondary: '#3FB8AF', tertiary: '#F4F4F4', logo: `${BASE}logos/BIR.svg` },
-  'Albuquerque Roadrunners': { abbr: 'ALB', conf: 'South', primary: '#0B1F3A', secondary: '#A8A8AC', tertiary: '#F4F4F4', logo: `${BASE}logos/ALB.svg` },
-  'Providence Anchors':   { abbr: 'PRO', conf: 'South', primary: '#2F5233', secondary: '#F4F4F4', tertiary: '#E8C547', logo: `${BASE}logos/PRO.svg` },
+  'Florida Buccaneers':   { abbr: 'FLA', conf: 'West',  primary: '#A8322B', secondary: '#5A5754', tertiary: '#7A4B2A', logo: `${BASE}logos/FLA.png` },
+  'Austin Founders':      { abbr: 'AUS', conf: 'East',  primary: '#D9C9A8', secondary: '#1B3A6B', tertiary: '#A8A8AC', logo: `${BASE}logos/AUS.png` },
+  'Columbus Rockets':     { abbr: 'COL', conf: 'East',  primary: '#E8631A', secondary: '#6B6F76', tertiary: '#F4F4F4', logo: `${BASE}logos/COL.png` },
+  'Sacramento Miners':    { abbr: 'SAC', conf: 'West',  primary: '#0B0B12', secondary: '#7A4B2A', tertiary: '#D4AF37', logo: `${BASE}logos/SAC.png` },
+  'Orlando Pilots':       { abbr: 'ORL', conf: 'West',  primary: '#123D2B', secondary: '#F4F4F4', tertiary: '#89BFA4', logo: `${BASE}logos/ORL.png` },
+  'Memphis Kings':        { abbr: 'MEM', conf: 'West',  primary: '#0E0E10', secondary: '#7B3FA7', tertiary: '#D4AF37', logo: `${BASE}logos/MEM.png` },
+  'Omaha Steel':          { abbr: 'OMA', conf: 'North', primary: '#161719', secondary: '#E15A2A', tertiary: '#8A8F94', logo: `${BASE}logos/OMA.png` },
+  'Raleigh Redwoods':     { abbr: 'RAL', conf: 'North', primary: '#123D2B', secondary: '#1A7A78', tertiary: '#A8D8C8', logo: `${BASE}logos/RAL.png` },
+  'Salt Lake Summit':     { abbr: 'SLC', conf: 'North', primary: '#0E0E10', secondary: '#E8C547', tertiary: '#C0392B', logo: `${BASE}logos/SLC.png` },
+  'Milwaukee Harbors':    { abbr: 'MIL', conf: 'North', primary: '#0E3145', secondary: '#22BBD6', tertiary: '#F4F4F4', logo: `${BASE}logos/MIL.png` },
+  'San Antonio Marshals': { abbr: 'SA',  conf: 'East',  primary: '#13294B', secondary: '#A8322B', tertiary: '#F4F4F4', logo: `${BASE}logos/SA.png`  },
+  'Louisville Saints':    { abbr: 'LOU', conf: 'East',  primary: '#F4F4F4', secondary: '#111111', tertiary: '#D4AF37', logo: `${BASE}logos/LOU.png` },
+  'Boise Tigers':         { abbr: 'BOI', conf: 'South', primary: '#0B1F3A', secondary: '#E8851A', tertiary: '#F4F4F4', logo: `${BASE}logos/BOI.png` },
+  'Colorado Vulcans':     { abbr: 'CO',  conf: 'South', primary: '#2D3033', secondary: '#8A8F94', tertiary: '#E15A2A', logo: `${BASE}logos/CO.png`  },
+  'Albuquerque Rogues':   { abbr: 'ALB', conf: 'South', primary: '#0B0B0D', secondary: '#7A4B2A', tertiary: '#C0392B', logo: `${BASE}logos/ALB.png` },
+  'Providence Anchors':   { abbr: 'PRO', conf: 'South', primary: '#2F5233', secondary: '#F4F4F4', tertiary: '#E8C547', logo: `${BASE}logos/PRO.png` },
 };
 
 export function bridgeTeam(engineTeam, league) {

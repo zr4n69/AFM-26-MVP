@@ -1,3 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M15 49L49 15M49 49L15 15"/><path d="M11 53l8-4M53 11l-4 8M11 11l8 4M53 53l-8-4"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Boise Tigers logo">
+  <title>Boise Tigers</title>
+  <g stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 10 32 15l14-5 7 14-5 21-16 10-16-10-5-21Z" fill="#E8851A"/>
+      <path d="m18 10-9-7 2 18M46 10l9-7-2 18" fill="#F4F4F4"/>
+      <path d="M21 28h8M35 28h8M27 39h10M23 45l6 3M41 45l-6 3" stroke="#111111" stroke-width="3"/>
+      <path d="M28 35h8l-4 5Z" fill="#111111"/>
+      <path d="M21 13l5 18M32 15v14M43 13l-5 18M12 30l13-4M52 30l-13-4" stroke="#111111" stroke-width="3"/>
+      <path d="M22 54c4 2 8 3 10 3s6-1 10-3" fill="none" stroke="#F4F4F4" stroke-width="3"/>
+    </g>
 </svg>

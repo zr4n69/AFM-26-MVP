@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Florida Buccaneers logo">
+  <title>Florida Buccaneers</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M10 33c-4 0-7-3-7-6s3-6 7-6h25l9 7-5 5H10Z" fill="#FFFFFF"/>
+      <path d="M38 19h11v8H38z" fill="#D6B16A"/>
+      <path d="M14 36v5M32 36v5" stroke="#FFFFFF" stroke-width="4"/>
+      <circle cx="14" cy="45" r="4" fill="#FFFFFF"/>
+      <circle cx="32" cy="45" r="4" fill="#FFFFFF"/>
+      <path d="M49 23c4-4 8-3 10 1" stroke="#D6B16A" stroke-width="3"/>
+    </g>
+</svg>

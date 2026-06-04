@@ -2,13 +2,13 @@ import { useLeague } from '../context/LeagueContext.jsx';
 
 const TICKER_ITEMS = [
   { tag: 'TRADE', text: 'Memphis Kings acquire WR depth before deadline' },
-  { tag: 'INJURY', text: 'Portland Stags QB questionable for Week 9' },
+  { tag: 'INJURY', text: 'Florida Buccaneers QB questionable for Week 9' },
   { tag: 'RECAP', text: 'Austin Founders defeat Omaha Steel 24-17 in OT thriller' },
   { tag: 'DRAFT', text: 'Top prospect Marcus Langford declares for 2027 draft' },
   { tag: 'FA', text: 'Free agent CB Devon Lawson drawing interest from 4 teams' },
   { tag: 'STATS', text: 'League rushing leaders through Week 8 updated' },
   { tag: 'AWARD', text: 'MVP race tightens as two QBs separate from the pack' },
-  { tag: 'TRADE', text: 'Birmingham Vulcans exploring moves at EDGE position' },
+  { tag: 'TRADE', text: 'Colorado Vulcans exploring moves at EDGE position' },
   { tag: 'RECAP', text: 'Salt Lake Summit extend win streak to 5 games' },
   { tag: 'INJURY', text: 'Raleigh Redwoods RB placed on injured reserve' },
 ];

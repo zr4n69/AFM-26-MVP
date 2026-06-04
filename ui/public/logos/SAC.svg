@@ -1,3 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M8 45l10-25 9 15 9-24 9 18 7-11"/><path d="M13 49h39"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Sacramento Miners logo">
+  <title>Sacramento Miners</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 26c10-11 24-15 39-8" stroke="#8A8F94" stroke-width="5"/>
+      <path d="M31 18 14 39" stroke="#7A4B2A" stroke-width="6"/>
+      <path d="M40 38 50 31l7 7-5 10-12 2-7-6Z" fill="#D4AF37"/>
+      <path d="M44 39h8" stroke="#FFF2A8" stroke-width="3"/>
+    </g>
 </svg>
