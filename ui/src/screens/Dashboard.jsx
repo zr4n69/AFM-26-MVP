@@ -1,5 +1,5 @@
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, ColorBlock, OvrPill, Stars, Avatar, InjBadge, formatM } from '../components/Chrome.jsx';
+import { Topbar, ColorBlock, OvrPill, Avatar, InjBadge, TRAIT_ICONS, formatM } from '../components/Chrome.jsx';
 
 export function ScreenDashboard({ onNav }) {
   const { userTeam, teams, week, season, phase, draft, hallOfFame, offseasonEvents, training, actions } = useLeague();
@@ -121,7 +121,7 @@ export function ScreenDashboard({ onNav }) {
                             <Avatar player={p} team={team} size={32} />
                             <div>
                               <div style={{ fontWeight: 600 }}>{p.name}</div>
-                              {p.traits[0] && <div className="muted" style={{ fontSize: 11 }}>{p.traits[0]}</div>}
+                              {p.traits[0] && <div className="muted" style={{ fontSize: 11 }}>{TRAIT_ICONS[p.traits[0]] || '•'} {p.traits[0].replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</div>}
                             </div>
                           </div>
                         </td>

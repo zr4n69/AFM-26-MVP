@@ -416,7 +416,7 @@ export function resolveTrainingSession(league, sessionId) {
 
   session.completed = true;
   session.results = results;
-  team.depthChart = buildDepthChart(team.roster);
+  if (!team.isPlayerControlled) team.depthChart = buildDepthChart(team.roster);
 
   // Mark the containing training window as completed
   if (session.type === "camp") {

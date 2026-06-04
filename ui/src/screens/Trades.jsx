@@ -46,6 +46,8 @@ export function ScreenTrades({ onNav }) {
   const [getPlayers, setGetPlayers] = useState([]);
   const [getPicks, setGetPicks] = useState([]);
   const [showPlayerPicker, setShowPlayerPicker] = useState(null); // 'give' | 'get'
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerPosFilter, setPickerPosFilter] = useState('');
   const [evaluation, setEvaluation] = useState(null);
 
   const otherTeams = teams.filter(t => t.id !== teamId);
@@ -180,10 +182,6 @@ export function ScreenTrades({ onNav }) {
                     <div style={{ textAlign: 'center', padding: '8px 0', color: 'var(--ink-4)', fontSize: 12, cursor: 'pointer' }}
                       onClick={() => setShowPlayerPicker('give')}>+ add player or pick</div>
                   </div>
-                  <div style={{ marginTop: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
-                    <span className="muted">Trade value</span>
-                    <strong className="mono">{myValue}</strong>
-                  </div>
                 </div>
 
                 {/* You get */}
@@ -205,35 +203,26 @@ export function ScreenTrades({ onNav }) {
                         onClick={() => setShowPlayerPicker('get')}>+ add player or pick</div>
                     )}
                   </div>
-                  <div style={{ marginTop: 6, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
-                    <span className="muted">Trade value</span>
-                    <strong className="mono">{theirValue}</strong>
-                  </div>
                 </div>
               </div>
 
-              {/* Value comparison */}
-              {(myValue > 0 || theirValue > 0) && (
-                <>
-                  <hr style={{ border: 'none', borderTop: '1px solid var(--line-soft)', margin: '14px 0' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>Value Comparison</div>
-                      <div style={{ font: '700 18px var(--font-display)', marginTop: 2 }}>{myValue} ↔ {theirValue}</div>
-                      <div className={theirValue > myValue ? 'dn' : theirValue < myValue ? 'up' : 'muted'} style={{ fontSize: 12 }}>
-                        {theirValue > myValue ? `+${theirValue - myValue} in their favor` : theirValue < myValue ? `+${myValue - theirValue} in your favor` : 'Even'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>CPU Likelihood</div>
-                      <div style={{ font: '700 18px var(--font-display)', marginTop: 2 }}>
-                        {theirValue === 0 ? '—' : myValue / theirValue >= 1.0 ? 'Very Likely' : myValue / theirValue >= 0.85 ? 'Likely' : myValue / theirValue >= 0.7 ? 'Possible' : myValue / theirValue >= 0.55 ? 'Unlikely' : 'No Chance'}
-                      </div>
-                      <div className="muted" style={{ fontSize: 10, marginTop: 2 }}>Context-aware: needs, scheme, cap</div>
-                    </div>
+              {/* Acceptance likelihood */}
+              {(myValue > 0 || theirValue > 0) && targetTeamId && (() => {
+                const ratio = theirValue > 0 ? myValue / theirValue : 0;
+                const [label, color] =
+                  theirValue === 0 ? ['—', 'var(--ink-4)'] :
+                  ratio >= 1.0  ? ['Very Likely', 'var(--pos)'] :
+                  ratio >= 0.85 ? ['Likely', '#7EE8A2'] :
+                  ratio >= 0.70 ? ['Possible', '#F2C94C'] :
+                  ratio >= 0.55 ? ['Unlikely', '#F2994A'] :
+                                  ['No Chance', 'var(--neg)'];
+                return (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--line-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="muted" style={{ fontSize: 12 }}>Acceptance likelihood</span>
+                    <span style={{ fontWeight: 700, fontSize: 13, color }}>{label}</span>
                   </div>
-                </>
-              )}
+                );
+              })()}
             </div>
           </div>
 
@@ -319,17 +308,38 @@ export function ScreenTrades({ onNav }) {
         {showPlayerPicker && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.45)', display: 'grid', placeItems: 'center' }}
             onClick={() => setShowPlayerPicker(null)}>
-            <div className="card" style={{ width: 640, maxWidth: '95vw', maxHeight: '70vh', animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
-              <div className="card-h"><h2>{showPlayerPicker === 'give' ? 'Add from your roster' : `Add from ${targetTeam?.city || 'partner'}`}</h2></div>
-              <div className="card-b tight" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+            <div className="card" style={{ width: 680, maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
+              <div className="card-h" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2>{showPlayerPicker === 'give' ? 'Add from your roster' : `Add from ${targetTeam?.city || 'partner'}`}</h2>
+                <button style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink-3)' }} onClick={() => setShowPlayerPicker(null)}>✕</button>
+              </div>
+              {/* Filters */}
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--line-soft)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  placeholder="Search player…"
+                  value={pickerSearch}
+                  onChange={e => setPickerSearch(e.target.value)}
+                  style={{ padding: '5px 10px', borderRadius: 4, border: '1px solid var(--line)', background: 'var(--bg-1)', color: 'var(--ink-1)', fontSize: 12, width: 160 }}
+                  autoFocus
+                />
+                {['', 'QB','RB','WR','TE','OT','OG','C','EDGE','DL','LB','CB','S','K','P'].map(pos => (
+                  <button key={pos} onClick={() => setPickerPosFilter(pos)}
+                    className={`btn${pickerPosFilter === pos ? ' primary' : ''}`}
+                    style={{ padding: '3px 8px', fontSize: 11 }}>
+                    {pos || 'All'}
+                  </button>
+                ))}
+              </div>
+              <div style={{ overflowY: 'auto', flex: 1 }}>
                 {/* Players */}
                 <table className="tbl">
                   <thead><tr><th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th><th>Pot.</th><th className="num">Cap</th><th className="col-mobile-hide">Stats</th><th></th></tr></thead>
                   <tbody>
                     {(showPlayerPicker === 'give' ? userTeam : targetTeam)?.roster
                       ?.filter(p => !(showPlayerPicker === 'give' ? givePlayers : getPlayers).includes(p.id))
+                      .filter(p => !pickerPosFilter || p.pos === pickerPosFilter)
+                      .filter(p => !pickerSearch || p.name.toLowerCase().includes(pickerSearch.toLowerCase()))
                       .sort((a, b) => b.ovr - a.ovr)
-                      .slice(0, 30)
                       .map(p => (
                         <tr key={p.id}>
                           <td><strong>{p.name}</strong></td>
@@ -341,33 +351,34 @@ export function ScreenTrades({ onNav }) {
                           <td className="muted col-mobile-hide" style={{ fontSize: 11 }}>{tradeStatLine(p) || '—'}</td>
                           <td>
                             <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => {
-                              if (showPlayerPicker === 'give') setGivePlayers([...givePlayers, p.id]);
-                              else setGetPlayers([...getPlayers, p.id]);
-                              setShowPlayerPicker(null);
-                            }}>Add</button>
+                              if (showPlayerPicker === 'give') setGivePlayers(prev => [...prev, p.id]);
+                              else setGetPlayers(prev => [...prev, p.id]);
+                            }}>+ Add</button>
                           </td>
                         </tr>
                       ))}
                   </tbody>
                 </table>
                 {/* Draft picks */}
-                <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 12, borderTop: '2px solid var(--line)' }}>Draft Picks</div>
-                {(draft?.picks || [])
-                  .filter(pk => {
-                    const ownerId = pk.currentTeamId;
+                {(() => {
+                  const availPicks = (draft?.picks || []).filter(pk => {
                     const side = showPlayerPicker === 'give' ? teamId : targetTeamId;
-                    return ownerId === side && !pk.prospectId && !(showPlayerPicker === 'give' ? givePicks : getPicks).includes(pk.id);
-                  })
-                  .map(pk => (
-                    <div key={pk.id} style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--line-soft)' }}>
-                      <span>R{pk.round} #{pk.overallPick}</span>
-                      <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => {
-                        if (showPlayerPicker === 'give') setGivePicks([...givePicks, pk.id]);
-                        else setGetPicks([...getPicks, pk.id]);
-                        setShowPlayerPicker(null);
-                      }}>Add</button>
-                    </div>
-                  ))}
+                    return pk.currentTeamId === side && !pk.prospectId && !(showPlayerPicker === 'give' ? givePicks : getPicks).includes(pk.id);
+                  });
+                  if (!availPicks.length) return null;
+                  return <>
+                    <div style={{ padding: '10px 16px', fontWeight: 700, fontSize: 12, borderTop: '2px solid var(--line)' }}>Draft Picks</div>
+                    {availPicks.map(pk => (
+                      <div key={pk.id} style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--line-soft)' }}>
+                        <span>R{pk.round} #{pk.overallPick}</span>
+                        <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => {
+                          if (showPlayerPicker === 'give') setGivePicks(prev => [...prev, pk.id]);
+                          else setGetPicks(prev => [...prev, pk.id]);
+                        }}>+ Add</button>
+                      </div>
+                    ))}
+                  </>;
+                })()}
               </div>
             </div>
           </div>

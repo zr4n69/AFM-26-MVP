@@ -173,7 +173,7 @@ export function simulateRegularSeason(league, options = {}) {
 
 export function runCpuTeamManagement(league) {
   for (const team of league.teams) {
-    team.depthChart = buildDepthChart(team.roster);
+    if (!team.isPlayerControlled) team.depthChart = buildDepthChart(team.roster);
     team.rosterNeeds.invalidPositions = Object.entries(team.depthChart)
       .filter(([, playerIds]) => playerIds.length === 0)
       .map(([position]) => position);

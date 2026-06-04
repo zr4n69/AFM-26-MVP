@@ -37,6 +37,18 @@ export function formatM(v) {
   return `$${(Math.round(v * 10) / 10).toFixed(1)}M`;
 }
 
+/** Format a raw dollar amount (e.g. 1500000 → $1.5M, 79400 → $79k) */
+export function formatDollars(v) {
+  if (v == null || v === 0) return '$0';
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) {
+    const m = v / 1_000_000;
+    return `$${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+  }
+  if (abs >= 1_000) return `$${Math.round(v / 1_000)}k`;
+  return `$${Math.round(v)}`;
+}
+
 function ovrClass(o) {
   if (o >= 90) return 'elite';
   if (o >= 85) return 'gold';
@@ -138,15 +150,25 @@ export function InjBadge({ status, weeksRemaining }) {
   return <span className={`badge ${cls}`}>{label}{weeks}</span>;
 }
 
-const TRAIT_ICONS = {
-  'clutch': '🎯', 'leader': '👑', 'bigPlaySpark': '⚡', 'ironMan': '🛡️',
-  'durable': '🛡️', 'fragile': '🩹', 'motorRelentless': '🔥', 'filmJunkie': '📽️',
-  'conservative': '🧊', 'speedster': '💨', 'powerBack': '💪', 'passRusher': '🌪️',
-  'shutdown': '🔒', 'ballHawk': '🦅', 'routeTechnician': '✂️', 'fieldGeneral': '🎖️',
-  'deepThreat': '🚀', 'possessionReceiver': '🧲', 'runStuffer': '🧱', 'zoneCoverage': '📡',
-  'manCoverage': '🪞', 'blitzer': '💥', 'versatile': '🔄', 'rawTalent': '💎',
-  'hardWorker': '🏋️', 'lazyPractice': '😴', 'teamPlayer': '🤝', 'locker room cancer': '⚠️',
-  'streaky': '📈', 'consistent': '📊', 'mentor': '🎓', 'prankster': '🃏',
+export const TRAIT_ICONS = {
+  'durable': '🛡️', 'fragile': '🩹',
+  'leader': '👑', 'lockerRoomRisk': '⚠️',
+  'bigPlaySpark': '⚡', 'conservative': '🧊',
+  'highMotor': '🔥', 'takesPlaysOff': '😴',
+  'technician': '✂️', 'rawTools': '💎',
+};
+
+export const TRAIT_DESCRIPTIONS = {
+  'durable': 'Rarely misses time due to injury. Bounces back quickly from hard contact.',
+  'fragile': 'Elevated injury risk. Can miss significant time after hits.',
+  'leader': 'Elevates teammates around them. Boosts morale and team cohesion.',
+  'lockerRoomRisk': 'Disrupts team chemistry. Can lower morale if left unchecked.',
+  'bigPlaySpark': 'Thrives in high-leverage moments. More likely to make game-changing plays.',
+  'conservative': 'Plays within the system. Low mistake rate, but rarely takes over a game.',
+  'highMotor': 'Never takes a play off. Consistently outperforms expectations through effort.',
+  'takesPlaysOff': 'Effort can wane during games. Inconsistent performance, especially late.',
+  'technician': 'Elite football IQ and technique. Gets the most out of every situation.',
+  'rawTools': 'Exceptional athletic gifts, but inconsistent fundamentals. Boom-or-bust potential.',
 };
 
 export function TraitBadge({ trait }) {

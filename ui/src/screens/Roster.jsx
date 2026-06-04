@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, Avatar, OvrPill, Stars, InjBadge, FatigueBar, TraitBadge, formatM } from '../components/Chrome.jsx';
+import { Topbar, Avatar, OvrPill, Stars, InjBadge, FatigueBar, TraitBadge, TRAIT_ICONS, TRAIT_DESCRIPTIONS, formatM, formatDollars } from '../components/Chrome.jsx';
 
 const FILTERS = ['All', 'Offense', 'Defense', 'Special Teams', 'Injured'];
 const OFF_POS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C'];
@@ -116,7 +116,14 @@ export function ScreenRoster({ onNav }) {
                     <td onClick={() => setSelectedPlayer(p)}><Stars n={p.potential} /></td>
                     <td onClick={() => setSelectedPlayer(p)}><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
                     <td className="col-mobile-hide" onClick={() => setSelectedPlayer(p)}><FatigueBar value={p.fatigue} /></td>
-                    <td className="muted col-mobile-hide" style={{ fontSize: 11 }} onClick={() => setSelectedPlayer(p)}>{p.traits.join(' · ') || '—'}</td>
+                    <td className="muted col-mobile-hide" style={{ fontSize: 11 }} onClick={() => setSelectedPlayer(p)}>
+                      {p.traits[0]
+                        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 13 }}>{TRAIT_ICONS[p.traits[0]] || '•'}</span>
+                            {p.traits[0].replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
+                          </span>
+                        : '—'}
+                    </td>
                     <td className="num mono col-mobile-hide" onClick={() => setSelectedPlayer(p)}>{p.years}</td>
                     <td className="num mono" onClick={() => setSelectedPlayer(p)}>{formatM(p.cap)}</td>
                     <td>
@@ -150,7 +157,7 @@ export function ScreenRoster({ onNav }) {
                   <span className="muted">{formatM(cutTarget.cap)}/yr</span>
                 </div>
                 <div className="muted" style={{ fontSize: 12, marginBottom: 16 }}>
-                  Dead money: {formatM(cutTarget._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(cutTarget._engine?.contract?.releaseImpact?.capSavings ?? 0)}
+                  Dead cap: {formatDollars(cutTarget._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Freed cap: {formatDollars(cutTarget._engine?.contract?.releaseImpact?.capSavings ?? 0)}
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                   <button className="btn" onClick={() => setCutTarget(null)}>Cancel</button>
@@ -243,6 +250,28 @@ function PlayerDetailModal({ player, team, onClose, onRelease }) {
                 {p._engine?.health?.injury && (
                   <span className="muted" style={{ fontSize: 12 }}>{p._engine.health.injury}</span>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Traits */}
+          {p.traits.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <h3 style={{ font: '700 13px var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 10 }}>Traits</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {p.traits.map(t => (
+                  <div key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', background: 'var(--turf-2)', border: '1px solid var(--line-1)', borderRadius: 4 }}>
+                    <span style={{ fontSize: 22, lineHeight: 1 }}>{TRAIT_ICONS[t] || '•'}</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-stamp)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
+                        {t.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.4 }}>
+                        {TRAIT_DESCRIPTIONS[t] || ''}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
