@@ -44,21 +44,21 @@ function prestigeStars(p) {
 }
 
 const TEAM_OPTIONS = [
-  { index: 0,  city: 'Florida',      name: 'Buccaneers', primary: '#A8322B', secondary: '#5A5754', logo: `${BASE}logos/FLA.svg` },
+  { index: 0,  city: 'Florida',      name: 'Buccaneers', primary: '#A8322B', secondary: '#5A5754', logo: `${BASE}logos/FLA.png` },
   { index: 1,  city: 'Austin',       name: 'Founders',   primary: '#D9C9A8', secondary: '#1B3A6B', logo: `${BASE}logos/AUS.png` },
-  { index: 2,  city: 'Columbus',     name: 'Rockets',    primary: '#E8631A', secondary: '#6B6F76', logo: `${BASE}logos/COL.svg` },
-  { index: 3,  city: 'Sacramento',   name: 'Miners',     primary: '#0B0B12', secondary: '#7A4B2A', logo: `${BASE}logos/SAC.svg` },
-  { index: 4,  city: 'Orlando',      name: 'Pilots',     primary: '#123D2B', secondary: '#F4F4F4', logo: `${BASE}logos/ORL.svg` },
+  { index: 2,  city: 'Columbus',     name: 'Rockets',    primary: '#E8631A', secondary: '#6B6F76', logo: `${BASE}logos/COL.png` },
+  { index: 3,  city: 'Sacramento',   name: 'Miners',     primary: '#0B0B12', secondary: '#7A4B2A', logo: `${BASE}logos/SAC.png` },
+  { index: 4,  city: 'Orlando',      name: 'Pilots',     primary: '#123D2B', secondary: '#F4F4F4', logo: `${BASE}logos/ORL.png` },
   { index: 5,  city: 'Memphis',      name: 'Kings',      primary: '#0E0E10', secondary: '#7B3FA7', logo: `${BASE}logos/MEM.png` },
   { index: 6,  city: 'Omaha',        name: 'Steel',      primary: '#161719', secondary: '#E15A2A', logo: `${BASE}logos/OMA.png` },
   { index: 7,  city: 'Raleigh',      name: 'Redwoods',   primary: '#123D2B', secondary: '#1A7A78', logo: `${BASE}logos/RAL.png` },
   { index: 8,  city: 'Salt Lake',    name: 'Summit',     primary: '#0E0E10', secondary: '#E8C547', logo: `${BASE}logos/SLC.png` },
   { index: 9,  city: 'Milwaukee',    name: 'Harbors',    primary: '#0E3145', secondary: '#22BBD6', logo: `${BASE}logos/MIL.png` },
   { index: 10, city: 'San Antonio',  name: 'Marshals',   primary: '#13294B', secondary: '#A8322B', logo: `${BASE}logos/SA.png`  },
-  { index: 11, city: 'Louisville',   name: 'Saints',     primary: '#F4F4F4', secondary: '#111111', logo: `${BASE}logos/LOU.svg` },
-  { index: 12, city: 'Boise',        name: 'Tigers',     primary: '#0B1F3A', secondary: '#E8851A', logo: `${BASE}logos/BOI.svg` },
-  { index: 13, city: 'Colorado',     name: 'Vulcans',    primary: '#2D3033', secondary: '#8A8F94', logo: `${BASE}logos/CO.svg`  },
-  { index: 14, city: 'Albuquerque',  name: 'Rogues',     primary: '#0B0B0D', secondary: '#7A4B2A', logo: `${BASE}logos/ALB.svg` },
+  { index: 11, city: 'Louisville',   name: 'Saints',     primary: '#F4F4F4', secondary: '#111111', logo: `${BASE}logos/LOU.png` },
+  { index: 12, city: 'Boise',        name: 'Tigers',     primary: '#0B1F3A', secondary: '#E8851A', logo: `${BASE}logos/BOI.png` },
+  { index: 13, city: 'Colorado',     name: 'Vulcans',    primary: '#2D3033', secondary: '#8A8F94', logo: `${BASE}logos/CO.png`  },
+  { index: 14, city: 'Albuquerque',  name: 'Rogues',     primary: '#0B0B0D', secondary: '#7A4B2A', logo: `${BASE}logos/ALB.png` },
   { index: 15, city: 'Providence',   name: 'Anchors',    primary: '#2F5233', secondary: '#F4F4F4', logo: `${BASE}logos/PRO.png` },
 ];
 
