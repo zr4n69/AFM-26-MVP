@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment, memo } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
 import { Topbar, ColorBlock, FieldDiagram, InjBadge } from '../components/Chrome.jsx';
+import { PlayAnimationOverlay } from './PlayAnimations.jsx';
 
 const REGULAR_SEASON_WEEKS = 10;
 
@@ -349,7 +350,7 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
               <ColorBlock team={opp} size={48} />
             </div>
           </div>
-          <div style={{ padding: 14 }}>
+          <div style={{ padding: 14, position: 'relative' }}>
             <SimPlayField
               team={team}
               opp={opp}
@@ -357,6 +358,12 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
               driveIndex={driveIndex}
               los={los}
               poss={poss}
+            />
+            <PlayAnimationOverlay
+              currentDrive={currentDrive}
+              team={team}
+              opp={opp}
+              paused={paused}
             />
           </div>
         </div>
