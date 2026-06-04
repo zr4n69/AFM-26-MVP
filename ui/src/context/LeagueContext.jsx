@@ -2,8 +2,9 @@ import { createContext, useContext, useState, useCallback, useMemo } from 'react
 import { createLeague } from '@engine/data/factories.js';
 import { updateStrategy, setDepthChart, releasePlayer, signPlayer, extendContract, scheduleTrainingSession, resolveTrainingSession, scoutProspectGroup, draftProspect, processUndraftedFreeAgents, proposeTrade, completeTrade, castHallOfFameVotes, generatePlayoffBracket, advanceSeasonPhase } from '@engine/data/actions.js';
 import { simulateWeek, generatePlayoffSeeds, simulatePlayoffRound } from '@engine/simulation/engine.js';
+import { runSeasonReview, runOffseason, advanceToNextSeason } from '@engine/simulation/season.js';
 import { cpuPickProspect, convertProspectToPlayer } from '@engine/simulation/cpu-ai.js';
-import { makeContractOffer, resolvePendingOffers } from '@engine/simulation/free-agency.js';
+import { makeContractOffer, resolvePendingOffers, runFreeAgencyPeriod } from '@engine/simulation/free-agency.js';
 import { calculateTradeValue, evaluateCpuTradeResponse } from '@engine/simulation/trade-value.js';
 import { createRng } from '@engine/data/random.js';
 import { bridgeLeague } from '../data/bridge.js';
@@ -41,6 +42,9 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     },
     simulateWeek(week) {
       try {
+        if (league.phase === 'preseason' && !league.training?.camp?.completed) {
+          throw new Error('Complete training camp before Week 1.');
+        }
         const games = simulateWeek(league, week);
         bump();
         return games;
@@ -211,6 +215,76 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
       } catch (e) {
         console.error('[advancePhase]', e);
         bump();
+      }
+    },
+    finalizeSeasonReview() {
+      try {
+        if (!league.awards.regularSeasonProcessed) runSeasonReview(league);
+        bump();
+        return true;
+      } catch (e) {
+        console.error('[finalizeSeasonReview]', e);
+        bump();
+        return false;
+      }
+    },
+    beginOffseason() {
+      try {
+        if (!league.awards.regularSeasonProcessed) runSeasonReview(league);
+        if (league.phase !== 'offseason') {
+          runOffseason(league, { skipDraft: true, skipFreeAgency: true });
+        }
+        bump();
+        return true;
+      } catch (e) {
+        console.error('[beginOffseason]', e);
+        bump();
+        return false;
+      }
+    },
+    resolveOffseasonFreeAgency() {
+      try {
+        const pending = resolvePendingOffers(league, { seed: `player-fa-${league.seed}-${league.currentSeason}` });
+        const cpu = runFreeAgencyPeriod(league, { seed: `cpu-fa-${league.seed}-${league.currentSeason}` });
+        league.offseasonEvents = { ...(league.offseasonEvents || {}), freeAgencyComplete: true };
+        bump();
+        return { pending, cpu };
+      } catch (e) {
+        console.error('[resolveOffseasonFreeAgency]', e);
+        bump();
+        return null;
+      }
+    },
+    updateMockDraftBoard(orderedProspectIds) {
+      const team = league.teams.find(t => t.isPlayerControlled);
+      if (team) team.mockDraftBoard = [...orderedProspectIds];
+      bump();
+    },
+    startNextSeason() {
+      try {
+        if (league.phase !== 'offseason') {
+          if (!league.awards.regularSeasonProcessed) runSeasonReview(league);
+          runOffseason(league, { skipDraft: true, skipFreeAgency: true });
+        }
+
+        const userTeam = league.teams.find(t => t.isPlayerControlled);
+        const freeAgencyComplete = !!league.offseasonEvents?.freeAgencyComplete;
+        const draftComplete = league.draft?.status === 'completed';
+        const hofEligible = league.hallOfFame?.eligiblePlayers || [];
+        const userHofBallot = userTeam ? (league.hallOfFame?.ballotsByTeamId?.[userTeam.id] || []) : [];
+        const hofComplete = hofEligible.length === 0 || userHofBallot.length > 0;
+
+        if (!freeAgencyComplete) throw new Error('Resolve offseason free agency before starting the next season.');
+        if (!draftComplete) throw new Error('Complete the offseason draft before starting the next season.');
+        if (!hofComplete) throw new Error('Cast your Hall of Fame ballot before starting the next season.');
+
+        advanceToNextSeason(league);
+        bump();
+        return true;
+      } catch (e) {
+        console.error('[startNextSeason]', e);
+        bump();
+        return false;
       }
     },
     getPlayoff() {

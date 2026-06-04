@@ -2,11 +2,11 @@ import { useLeague } from '../context/LeagueContext.jsx';
 import { Topbar, ColorBlock, OvrPill, Avatar } from '../components/Chrome.jsx';
 
 const AWARD_META = {
-  seasonMvp:              { label: 'Season MVP',                icon: '★', color: 'var(--neon, #C7FF3E)' },
-  offensivePlayerOfYear:  { label: 'Offensive Player of Year',  icon: '🏈', color: '#F2994A' },
-  defensivePlayerOfYear:  { label: 'Defensive Player of Year',  icon: '🛡', color: '#56CCF2' },
-  offensiveRookieOfYear:  { label: 'Off. Rookie of the Year',   icon: '🌟', color: '#F2C94C' },
-  defensiveRookieOfYear:  { label: 'Def. Rookie of the Year',   icon: '🌟', color: '#9B51E0' },
+  seasonMvp:              { label: 'Season MVP',                icon: 'MVP', color: 'var(--neon, #C7FF3E)', basis: 'overall value' },
+  offensivePlayerOfYear:  { label: 'Offensive Player of Year',  icon: 'OFF', color: '#F2994A', basis: 'yards and touchdowns' },
+  defensivePlayerOfYear:  { label: 'Defensive Player of Year',  icon: 'DEF', color: '#56CCF2', basis: 'stops, pressure, turnovers' },
+  offensiveRookieOfYear:  { label: 'Off. Rookie of the Year',   icon: 'OR', color: '#F2C94C', basis: 'rookie offensive production' },
+  defensiveRookieOfYear:  { label: 'Def. Rookie of the Year',   icon: 'DR', color: '#9B51E0', basis: 'rookie defensive production' },
 };
 
 // Mirror engine scoring for live award watch
@@ -57,7 +57,10 @@ function RaceRow({ rank, player, team, scoreFn, maxScore }) {
           </div>
           <div className="muted" style={{ fontSize: 10 }}>{player.pos} · {team.abbr}</div>
         </div>
-        <OvrPill ovr={player.ovr} />
+        <div style={{ textAlign: 'right' }}>
+          <OvrPill ovr={player.ovr} />
+          <div className="mono" style={{ fontSize: 10, marginTop: 4, color: 'var(--ink-3)' }}>Score {Math.round(score)}</div>
+        </div>
       </div>
       <div style={{ marginTop: 5, fontSize: 10, color: 'var(--ink-3)', marginLeft: 30 }}>{statLine(player)}</div>
       <div style={{ marginTop: 4, marginLeft: 30, height: 3, background: 'var(--line-soft)', borderRadius: 2, overflow: 'hidden' }}>
@@ -75,10 +78,10 @@ function AwardWatchCard({ awardKey, candidates, scoreFn }) {
   return (
     <div className="card">
       <div className="card-h" style={{ gap: 8 }}>
-        <span style={{ fontSize: 16 }}>{meta.icon}</span>
+        <span className="chip outline" style={{ fontSize: 10, color: meta.color, borderColor: meta.color }}>{meta.icon}</span>
         <h2 style={{ flex: 1 }}>{meta.label}</h2>
         <span style={{ fontSize: 10, fontWeight: 700, color: meta.color, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-          RACE
+          {meta.basis}
         </span>
       </div>
       <div className="card-b tight" style={{ padding: '4px 16px 8px' }}>
@@ -100,7 +103,7 @@ function WinnerCard({ awardKey, entry, findPlayer, findTeam }) {
   return (
     <div className="card" style={{ borderTop: `3px solid ${meta.color}` }}>
       <div className="card-h" style={{ gap: 8 }}>
-        <span style={{ fontSize: 16 }}>{meta.icon}</span>
+        <span className="chip outline" style={{ fontSize: 10, color: meta.color, borderColor: meta.color }}>{meta.icon}</span>
         <div style={{ flex: 1 }}>
           <h2 style={{ margin: 0 }}>{meta.label}</h2>
         </div>
@@ -118,6 +121,34 @@ function WinnerCard({ awardKey, entry, findPlayer, findTeam }) {
           <div style={{ marginTop: 5, fontSize: 11, color: 'var(--ink-3)' }}>{statLine(player)}</div>
         </div>
         <OvrPill ovr={player.ovr} />
+      </div>
+    </div>
+  );
+}
+
+
+function AllProTable({ entries, label, findPlayer, findTeam }) {
+  return (
+    <div className="card">
+      <div className="card-h"><h2>{label}</h2></div>
+      <div className="card-b tight">
+        <table className="tbl">
+          <tbody>
+            {entries.map((a, i) => {
+              const team = findTeam(a.teamId);
+              const player = findPlayer(a.teamId, a.playerId);
+              return (
+                <tr key={i}>
+                  <td className="mono" style={{ width: 44, fontWeight: 700, color: 'var(--ink-3)' }}>{a.metadata?.position}</td>
+                  <td><strong>{player?.name || '-'}</strong></td>
+                  <td style={{ width: 26 }}><ColorBlock team={team} size={16} /></td>
+                  <td className="num"><OvrPill ovr={player?.ovr} /></td>
+                </tr>
+              );
+            })}
+            {entries.length === 0 && <tr><td className="muted" colSpan={4}>Not yet computed</td></tr>}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -169,33 +200,6 @@ export function ScreenAwards({ onNav }) {
   const allPro2Off    = allProSecond.filter(a => ['QB','RB','WR','TE','OT','OG','C'].includes(a?.metadata?.position));
   const allPro2Def    = allProSecond.filter(a => ['EDGE','DL','LB','CB','S'].includes(a?.metadata?.position));
 
-  function AllProTable({ entries, label }) {
-    return (
-      <div className="card">
-        <div className="card-h"><h2>{label}</h2></div>
-        <div className="card-b tight">
-          <table className="tbl">
-            <tbody>
-              {entries.map((a, i) => {
-                const team   = findTeam(a.teamId);
-                const player = findPlayer(a.teamId, a.playerId);
-                return (
-                  <tr key={i}>
-                    <td className="mono" style={{ width: 44, fontWeight: 700, color: 'var(--ink-3)' }}>{a.metadata?.position}</td>
-                    <td><strong>{player?.name || '—'}</strong></td>
-                    <td style={{ width: 26 }}><ColorBlock team={team} size={16} /></td>
-                    <td className="num"><OvrPill ovr={player?.ovr} /></td>
-                  </tr>
-                );
-              })}
-              {entries.length === 0 && <tr><td className="muted" colSpan={4}>Not yet computed</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <Topbar crumb="League / Awards" title="Awards" pill={hasAwards ? 'Final' : 'Award Watch'} />
@@ -220,7 +224,7 @@ export function ScreenAwards({ onNav }) {
               <div className="card-h"><h2>How Awards Are Decided</h2></div>
               <div className="card-b" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 18, fontSize: 13 }}>
                 {[
-                  { h: 'Production', b: 'Stats, efficiency, snap volume, clutch moments' },
+                  { h: 'Tracker Score', b: 'The live score is a readable approximation of the engine award formula' },
                   { h: 'Context',    b: 'Team success, positional value, scheme fit' },
                   { h: 'Influence',  b: 'Pressure created, turnovers forced / prevented' },
                   { h: 'Value',      b: 'Awards raise contract & trade market value' },
@@ -250,13 +254,13 @@ export function ScreenAwards({ onNav }) {
               <h2>All-Pro Teams</h2>
             </div>
             <div className="grid grid-2" style={{ marginBottom: 14 }}>
-              <AllProTable entries={allProOffense} label="1st Team All-Pro · Offense" />
-              <AllProTable entries={allProDefense} label="1st Team All-Pro · Defense" />
+              <AllProTable entries={allProOffense} label="1st Team All-Pro · Offense" findPlayer={findPlayer} findTeam={findTeam} />
+              <AllProTable entries={allProDefense} label="1st Team All-Pro · Defense" findPlayer={findPlayer} findTeam={findTeam} />
             </div>
             {(allPro2Off.length > 0 || allPro2Def.length > 0) && (
               <div className="grid grid-2" style={{ marginBottom: 24 }}>
-                <AllProTable entries={allPro2Off} label="2nd Team All-Pro · Offense" />
-                <AllProTable entries={allPro2Def} label="2nd Team All-Pro · Defense" />
+                <AllProTable entries={allPro2Off} label="2nd Team All-Pro · Offense" findPlayer={findPlayer} findTeam={findTeam} />
+                <AllProTable entries={allPro2Def} label="2nd Team All-Pro · Defense" findPlayer={findPlayer} findTeam={findTeam} />
               </div>
             )}
           </>

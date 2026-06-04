@@ -62,12 +62,11 @@ The simulation engine provides a complete playable football league simulation wi
 ## Known Limitations
 
 ### Minor Issues (Pre-existing)
-- 3 data-layer tests fail unrelated to simulation (contract/prestige calculations)
-- These do not affect gameplay or 48-season test reliability
+- No known failing tests in the current suite
 
 ### Design Constraints
 - 16-team league (fixed) — well-balanced for simulation
-- 12-week regular season — allows for full offseason cycle
+- 10-week regular season — allows for full offseason cycle
 - No player trades in free agency (re-signing only after cut)
 - CPU teams use fixed strategy (no mid-season adjustments)
 

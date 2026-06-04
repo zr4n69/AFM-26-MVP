@@ -64,8 +64,7 @@ See [stage-4-web-mvp.md](docs/stage-4-web-mvp.md) for complete feature list.
 ✅ All features tested and verified  
 
 No critical bugs. Minor issues:
-- 3 pre-existing data-layer test failures (unrelated to gameplay)
-- These do not affect game functionality
+- No known failing tests in the current suite
 
 ## Next Steps (Post-MVP)
 

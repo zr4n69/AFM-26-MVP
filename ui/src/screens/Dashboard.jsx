@@ -2,9 +2,22 @@ import { useLeague } from '../context/LeagueContext.jsx';
 import { Topbar, ColorBlock, OvrPill, Stars, Avatar, InjBadge, formatM } from '../components/Chrome.jsx';
 
 export function ScreenDashboard({ onNav }) {
-  const { userTeam, teams, week, season } = useLeague();
+  const { userTeam, teams, week, season, phase, draft, hallOfFame, offseasonEvents, training, actions } = useLeague();
   const team = userTeam;
   if (!team) return null;
+
+  const isOffseason = phase === 'offseason';
+  const freeAgencyComplete = !!offseasonEvents?.freeAgencyComplete;
+  const draftComplete = draft?.status === 'completed';
+  const hofEligible = hallOfFame?.eligiblePlayers || [];
+  const hofComplete = hofEligible.length === 0 || !!hallOfFame?.ballotsByTeamId?.[team.id]?.length;
+  const campComplete = !!training?.camp?.completed;
+  const isPreseasonCamp = phase === 'preseason' && week === 0 && !campComplete;
+  const canStartNextSeason = isOffseason && freeAgencyComplete && draftComplete && hofComplete;
+
+  function startNextSeason() {
+    if (actions.startNextSeason()) onNav('dashboard');
+  }
 
   const confTeams = teams.filter(t => t.conf === team.conf).sort((a, b) => b.w - a.w);
   const injuries = team.roster.filter(p => p.injStatus).sort((a, b) => b.ovr - a.ovr).slice(0, 6);
@@ -15,15 +28,53 @@ export function ScreenDashboard({ onNav }) {
       <Topbar
         crumb={`Team / ${team.city} ${team.name}`}
         title="Dashboard"
-        pill={`Wk ${week + 1} · Season ${season}`}
+        pill={isOffseason ? `Offseason · Season ${season}` : isPreseasonCamp ? `Training Camp · Season ${season}` : `Wk ${week + 1} · Season ${season}`}
         actions={
-          <>
-            <button className="btn" onClick={() => onNav('gameweek')}>Sim Week</button>
-            <button className="btn primary" onClick={() => onNav('gameweek')}>Play Week {week + 1} →</button>
-          </>
+          isOffseason ? (
+            <>
+              <button className="btn" onClick={() => onNav(!freeAgencyComplete ? 'fa' : !draftComplete ? 'draft' : 'hof')}>Offseason Tasks</button>
+              <button className="btn primary" disabled={!canStartNextSeason} onClick={startNextSeason}>Open Training Camp →</button>
+            </>
+          ) : isPreseasonCamp ? (
+            <>
+              <button className="btn" onClick={() => onNav('roster')}>Review Roster</button>
+              <button className="btn primary" onClick={() => onNav('training')}>Run Training Camp →</button>
+            </>
+          ) : (
+            <>
+              <button className="btn" onClick={() => onNav('gameweek')}>Sim Week</button>
+              <button className="btn primary" onClick={() => onNav('gameweek')}>Play Week {week + 1} →</button>
+            </>
+          )
         }
       />
       <div className="page">
+        {isOffseason && (
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div className="card-h"><h2>Offseason Checklist</h2><span className="right">Season {season + 1} waits here</span></div>
+            <div className="card-b" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className={`chip ${freeAgencyComplete ? 'pos' : 'outline'}`}>Free Agency {freeAgencyComplete ? 'Complete' : 'Required'}</span>
+              <span className={`chip ${draftComplete ? 'pos' : 'outline'}`}>Draft {draftComplete ? 'Complete' : 'Required'}</span>
+              <span className={`chip ${hofComplete ? 'pos' : 'outline'}`}>Hall of Fame {hofComplete ? 'Complete' : 'Required'}</span>
+              <button className="btn primary" onClick={() => onNav(!freeAgencyComplete ? 'fa' : !draftComplete ? 'draft' : 'hof')}>Continue Offseason →</button>
+              <button className="btn" onClick={() => onNav('fa')}>Free Agency</button>
+              <button className="btn" onClick={() => onNav('contracts')}>Contracts</button>
+              <button className="btn" onClick={() => onNav('trades')}>Trades</button>
+            </div>
+          </div>
+        )}
+
+        {isPreseasonCamp && (
+          <div className="card" style={{ marginBottom: 18 }}>
+            <div className="card-h"><h2>Training Camp Required</h2><span className="right">Week 1 is locked</span></div>
+            <div className="card-b" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className="chip outline">Camp Required</span>
+              <span className="muted" style={{ fontSize: 13, flex: 1 }}>Run one focused camp session before opening the regular season.</span>
+              <button className="btn primary" onClick={() => onNav('training')}>Run Training Camp →</button>
+            </div>
+          </div>
+        )}
+
         {/* Stat tiles */}
         <div className="grid grid-4" style={{ marginBottom: 18 }}>
           <div className="stat-tile">

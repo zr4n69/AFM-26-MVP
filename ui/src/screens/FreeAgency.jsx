@@ -41,7 +41,7 @@ function statLine(p) {
 }
 
 export function ScreenFreeAgency({ onNav }) {
-  const { userTeam, freeAgents, actions } = useLeague();
+  const { userTeam, freeAgents, phase, pendingOffers, offseasonEvents, actions } = useLeague();
   const teamId = userTeam.id;
 
   const [filter, setFilter] = useState('All');
@@ -70,14 +70,30 @@ export function ScreenFreeAgency({ onNav }) {
   const rosterCount = userTeam.roster?.length || 0;
   const rosterSpots = 55 - rosterCount;
   const rosterFull = rosterSpots <= 0;
+  const isOffseason = phase === 'offseason';
+  const freeAgencyComplete = !!offseasonEvents?.freeAgencyComplete;
+  const userPendingOffers = (pendingOffers || []).filter(o => o.teamId === teamId);
+
+  function resolveOffseasonMarket() {
+    setErrorMsg(null);
+    const result = actions.resolveOffseasonFreeAgency();
+    if (result) setLastResult({
+      signings: [...(result.pending?.signings || []), ...(result.cpu?.signings || [])],
+      rejections: result.pending?.rejections || []
+    });
+  }
 
   function submitOffer() {
     if (!offerTarget) return;
     setErrorMsg(null);
     try {
       actions.makeOffer(teamId, offerTarget.id, offerSalary * 1_000_000, offerYears);
-      const result = actions.resolveOffers();
-      setLastResult(result);
+      if (isOffseason && !freeAgencyComplete) {
+        setLastResult({ signings: [], rejections: [] });
+      } else {
+        const result = actions.resolveOffers();
+        setLastResult(result);
+      }
       setOfferTarget(null);
     } catch (e) {
       setErrorMsg(e.message || 'Failed to make offer');
@@ -95,8 +111,23 @@ export function ScreenFreeAgency({ onNav }) {
 
   return (
     <>
-      <Topbar crumb="Front Office / Free Agency" title="Free Agency" />
+      <Topbar crumb="Front Office / Free Agency" title="Free Agency" actions={
+        isOffseason && !freeAgencyComplete ? (
+          <button className="btn primary" onClick={resolveOffseasonMarket}>Resolve Offseason FA →</button>
+        ) : null
+      } />
       <div className="page">
+
+        {isOffseason && (
+          <div className="card" style={{ marginBottom: 14, borderColor: freeAgencyComplete ? 'var(--pos)' : 'var(--neon)' }}>
+            <div className="card-h"><h2>Offseason Free Agency</h2><span className="right">{freeAgencyComplete ? 'Resolved' : `${userPendingOffers.length} offer${userPendingOffers.length === 1 ? '' : 's'} pending`}</span></div>
+            <div className="card-b" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span className={`chip ${freeAgencyComplete ? 'pos' : 'outline'}`}>{freeAgencyComplete ? 'Complete' : 'Required'}</span>
+              <span className="muted" style={{ flex: 1, fontSize: 13 }}>Make any offers you want, then resolve the market so CPU teams compete and sign players too.</span>
+              {!freeAgencyComplete && <button className="btn primary" onClick={resolveOffseasonMarket}>Resolve FA Market →</button>}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-4" style={{ marginBottom: 18 }}>
           <div className="stat-tile">
@@ -322,7 +353,7 @@ export function ScreenFreeAgency({ onNav }) {
             <div className="card-h"><h2>How Negotiations Work</h2></div>
             <div className="card-b" style={{ fontSize: 13 }}>
               <ol style={{ margin: 0, paddingLeft: 18 }}>
-                <li>Offer salary and years — decision is instant</li>
+                <li>In offseason, offers resolve when you advance the FA market</li>
                 <li>Player weighs contract value (35%), prestige (25%), team performance (20%), need (10%), morale (10%)</li>
                 <li>CPU teams may also make competing offers</li>
                 <li>Accepted players join your roster immediately</li>

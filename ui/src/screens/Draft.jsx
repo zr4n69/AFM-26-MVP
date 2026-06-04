@@ -10,7 +10,9 @@ export function ScreenDraft({ onNav }) {
   const teamId = userTeam?.id;
 
   const isOffseason = phase === 'offseason';
-  const [mode, setMode] = useState(draft?.status === 'completed' ? 'results' : 'predraft');
+  const initialMode = draft?.status === 'completed' ? 'results' : draft?.status === 'in_progress' ? 'live' : 'predraft';
+  const [mode, setMode] = useState(initialMode);
+  const [showBoard, setShowBoard] = useState(false);
   const [draftLog, setDraftLog] = useState([]);
   const [currentPickIdx, setCurrentPickIdx] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -19,6 +21,10 @@ export function ScreenDraft({ onNav }) {
   const picks = draft?.picks || [];
   const userPicks = picks.filter(p => p.currentTeamId === teamId);
   const revealed = scouting?.revealedGroupsByTeamId?.[teamId] || {};
+  const freeAgencyComplete = !!league?.offseasonEvents?.freeAgencyComplete;
+  const hofEligible = league?.hallOfFame?.eligiblePlayers || [];
+  const userHofBallot = league?.hallOfFame?.ballotsByTeamId?.[teamId] || [];
+  const hofComplete = hofEligible.length === 0 || userHofBallot.length > 0;
 
   // Sort teams by record for draft order display
   const draftOrder = [...teams].sort((a, b) => a.w - b.w || a.diff - b.diff);
@@ -29,10 +35,10 @@ export function ScreenDraft({ onNav }) {
   const startDraft = useCallback(() => {
     setMode('live');
     if (league.draft) league.draft.status = 'in_progress';
-    setCurrentPickIdx(0);
+    setCurrentPickIdx(Math.max(0, nextPickIdx));
     setDraftLog([]);
     setIsRunning(true);
-  }, [league]);
+  }, [league, nextPickIdx]);
 
   // Run CPU picks automatically
   useEffect(() => {
@@ -126,7 +132,8 @@ export function ScreenDraft({ onNav }) {
   }
 
   const findTeam = (id) => teams.find(t => t.id === id);
-  const currentPick = picks[currentPickIdx];
+  const currentPick = picks[nextPickIdx >= 0 ? nextPickIdx : currentPickIdx];
+  const visiblePickIdx = nextPickIdx >= 0 ? nextPickIdx : currentPickIdx;
   const isUserOnClock = currentPick && !currentPick.prospectId && currentPick.currentTeamId === teamId;
 
   // Available prospects — only undrafted
@@ -139,11 +146,34 @@ export function ScreenDraft({ onNav }) {
   const currentRound = currentPick ? currentPick.round : (draft?.status === 'completed' ? 5 : 1);
   const totalDrafted = picks.filter(p => p.prospectId).length;
 
-  // Draft NOT available outside offseason (unless already in progress or completed)
-  if (!isOffseason && draft?.status !== 'in_progress' && draft?.status !== 'completed') {
+  const freeAgencyGate = isOffseason && !freeAgencyComplete && draft?.status !== 'completed';
+  if (freeAgencyGate && !showBoard) {
     return (
       <>
         <Topbar crumb="Front Office / Draft" title={`${season + 1} AFL Draft`} />
+        <div className="page">
+          <div className="card">
+            <div className="card-b" style={{ padding: 40, textAlign: 'center' }}>
+              <h2 style={{ marginBottom: 8 }}>Resolve Free Agency First</h2>
+              <p className="muted" style={{ maxWidth: 440, margin: '0 auto' }}>
+                The offseason market must be resolved before draft day opens. Make any offers you want, then finish free agency.
+              </p>
+              <button className="btn primary" style={{ marginTop: 16 }} onClick={() => onNav('fa')}>Go to Free Agency →</button>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Outside offseason: only My Board is accessible
+  const draftLocked = !isOffseason && draft?.status !== 'in_progress' && draft?.status !== 'completed';
+  if (draftLocked && !showBoard) {
+    return (
+      <>
+        <Topbar crumb="Front Office / Draft" title={`${season + 1} AFL Draft`} actions={
+          <button className="btn accent" onClick={() => setShowBoard(true)}>📋 My Draft Board</button>
+        } />
         <div className="page">
           <div className="card">
             <div className="card-b" style={{ padding: 40, textAlign: 'center' }}>
@@ -151,9 +181,12 @@ export function ScreenDraft({ onNav }) {
               <h2 style={{ marginBottom: 8 }}>Draft Available During Offseason</h2>
               <p className="muted" style={{ maxWidth: 400, margin: '0 auto' }}>
                 The AFL Draft is a special offseason event. Complete the current season to enter the draft.
-                Use Scouting to prepare for draft day.
+                Use Scouting to prepare for draft day — or build your personal draft board now.
               </p>
-              <button className="btn" style={{ marginTop: 16 }} onClick={() => onNav('scouting')}>Go to Scouting →</button>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
+                <button className="btn" onClick={() => onNav('scouting')}>Go to Scouting →</button>
+                <button className="btn accent" onClick={() => setShowBoard(true)}>📋 My Draft Board</button>
+              </div>
             </div>
           </div>
         </div>
@@ -165,9 +198,20 @@ export function ScreenDraft({ onNav }) {
     <>
       <Topbar crumb="Front Office / Draft" title={`${season + 1} AFL Draft`} actions={
         <>
-          {mode === 'predraft' && <button className="btn primary" onClick={startDraft}>Start Draft</button>}
-          {mode === 'live' && isUserOnClock && <button className="btn primary" onClick={autoPick}>Auto-Pick</button>}
-          {mode === 'results' && <button className="btn" onClick={() => onNav('roster')}>View Roster</button>}
+          <button className={`btn${showBoard ? ' accent' : ''}`} onClick={() => setShowBoard(b => !b)}>
+            📋 {showBoard ? 'Hide Board' : 'My Board'}
+          </button>
+          {!showBoard && mode === 'predraft' && <button className="btn primary" onClick={startDraft}>Start Draft</button>}
+          {!showBoard && mode === 'live' && isUserOnClock && <button className="btn primary" onClick={autoPick}>Auto-Pick</button>}
+          {!showBoard && mode === 'results' && <button className="btn" onClick={() => onNav('roster')}>View Roster</button>}
+          {!showBoard && mode === 'results' && isOffseason && (
+            <button className="btn primary" onClick={() => {
+              if (!hofComplete) onNav('hof');
+              else if (actions.startNextSeason()) onNav('dashboard');
+            }}>
+              {hofComplete ? `Start Season ${season + 1} →` : 'Cast HOF Ballot →'}
+            </button>
+          )}
         </>
       } />
       <div className="page">
@@ -195,8 +239,18 @@ export function ScreenDraft({ onNav }) {
           </div>
         </div>
 
+        {/* MY BOARD */}
+        {showBoard && (
+          <MockDraftBoard
+            draftClass={draftClass}
+            revealed={revealed}
+            board={userTeam._engine?.mockDraftBoard || []}
+            onUpdate={ids => actions.updateMockDraftBoard(ids)}
+          />
+        )}
+
         {/* PRE-DRAFT MODE */}
-        {mode === 'predraft' && (
+        {!showBoard && mode === 'predraft' && (
           <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
             <div className="card">
               <div className="card-h"><h2>Draft Order</h2><span className="right">Worst record picks first</span></div>
@@ -247,18 +301,18 @@ export function ScreenDraft({ onNav }) {
         )}
 
         {/* LIVE DRAFT MODE */}
-        {mode === 'live' && (
+        {!showBoard && mode === 'live' && (
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 16 }}>
             {/* Draft board / ticker */}
             <div className="card">
               <div className="card-h"><h2>Draft Board</h2><span className="right">Round {currentRound} · Pick {totalDrafted + 1}</span></div>
               <div className="card-b tight" style={{ maxHeight: 550, overflowY: 'auto' }}>
                 {/* Show all completed picks + current */}
-                {picks.slice(0, currentPickIdx + 1).map((pick, i) => {
+                {picks.slice(0, visiblePickIdx + 1).map((pick, i) => {
                   const t = findTeam(pick.currentTeamId);
                   const prospect = pick.prospectId ? draftClass.find(pr => pr.id === pick.prospectId) : null;
                   const logEntry = draftLog.find(l => l.pickId === pick.id);
-                  const isCurrent = i === currentPickIdx && !pick.prospectId;
+                  const isCurrent = i === visiblePickIdx && !pick.prospectId;
                   return (
                     <div key={pick.id} style={{
                       padding: '10px 14px', borderBottom: '1px solid var(--line-soft)',
@@ -329,7 +383,7 @@ export function ScreenDraft({ onNav }) {
         )}
 
         {/* RESULTS MODE */}
-        {mode === 'results' && (
+        {!showBoard && mode === 'results' && (
           <div className="card">
             <div className="card-h"><h2>Draft Results</h2><span className="right">{totalDrafted} players drafted</span></div>
             <div className="card-b tight" style={{ maxHeight: 600, overflowY: 'auto' }}>
@@ -357,5 +411,109 @@ export function ScreenDraft({ onNav }) {
         )}
       </div>
     </>
+  );
+}
+
+// ── Mock Draft Board ─────────────────────────────────────────────────────────
+function MockDraftBoard({ draftClass, revealed, board, onUpdate }) {
+  const all = draftClass
+    .filter(p => !p.draftedByTeamId)
+    .map(p => bridgeProspect(p, revealed))
+    .sort((a, b) => a.projRank - b.projRank);
+
+  const boardSet = new Set(board);
+  const boarded = board.map(id => all.find(p => p.id === id)).filter(Boolean);
+  const available = all.filter(p => !boardSet.has(p.id));
+
+  const [posFilter, setPosFilter] = useState('');
+
+  function move(idx, dir) {
+    const next = [...board];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= next.length) return;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    onUpdate(next);
+  }
+
+  function addToBoard(id) { onUpdate([...board, id]); }
+  function removeFromBoard(id) { onUpdate(board.filter(x => x !== id)); }
+
+  const filtered = available.filter(p => !posFilter || p.pos === posFilter);
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      {/* Left: personal board */}
+      <div className="card">
+        <div className="card-h">
+          <h2>My Board</h2>
+          <span className="right muted" style={{ fontSize: 12 }}>{boarded.length} ranked</span>
+        </div>
+        <div className="card-b tight" style={{ maxHeight: 520, overflowY: 'auto' }}>
+          {boarded.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
+              Add prospects from the right →
+            </div>
+          )}
+          {boarded.map((p, idx) => (
+            <div key={p.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px', borderBottom: '1px solid var(--line-soft)',
+            }}>
+              <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12, color: 'var(--neon)', minWidth: 22 }}>
+                #{idx + 1}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+                  {p.pos} · {p.ratingRange[0]}–{p.ratingRange[1]}
+                  {p.ovr != null ? ` · OVR ${p.ovr}` : ''}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="btn" style={{ padding: '2px 7px', fontSize: 11 }} onClick={() => move(idx, -1)} disabled={idx === 0}>↑</button>
+                <button className="btn" style={{ padding: '2px 7px', fontSize: 11 }} onClick={() => move(idx, 1)} disabled={idx === boarded.length - 1}>↓</button>
+                <button className="btn" style={{ padding: '2px 7px', fontSize: 11, color: 'var(--neg)', borderColor: 'var(--neg)' }} onClick={() => removeFromBoard(p.id)}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: available to add */}
+      <div className="card">
+        <div className="card-h">
+          <h2>Available Prospects</h2>
+          <span className="right muted" style={{ fontSize: 12 }}>{available.length} left</span>
+        </div>
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--line-soft)', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['', 'QB','RB','WR','TE','OT','OG','C','EDGE','DL','LB','CB','S'].map(pos => (
+            <button key={pos} onClick={() => setPosFilter(pos)}
+              className={`btn${posFilter === pos ? ' primary' : ''}`}
+              style={{ padding: '2px 8px', fontSize: 11 }}>
+              {pos || 'All'}
+            </button>
+          ))}
+        </div>
+        <div className="card-b tight" style={{ maxHeight: 468, overflowY: 'auto' }}>
+          <table className="tbl">
+            <thead><tr><th className="num">Rk</th><th>Prospect</th><th>Pos</th><th>Range</th><th className="num">OVR</th><th></th></tr></thead>
+            <tbody>
+              {filtered.map(p => (
+                <tr key={p.id}>
+                  <td className="num mono">{p.projRank}</td>
+                  <td><strong>{p.name}</strong></td>
+                  <td className="mono">{p.pos}</td>
+                  <td className="mono" style={{ fontSize: 11 }}>{p.ratingRange[0]}–{p.ratingRange[1]}</td>
+                  <td className="num">{p.ovr != null ? <OvrPill ovr={p.ovr} /> : <span className="muted">?</span>}</td>
+                  <td>
+                    <button className="btn" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => addToBoard(p.id)}>+ Add</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -21,8 +21,19 @@ export function ScreenGameWeek({ onNav }) {
   if (!team) return null;
 
   // ── Season complete: regular season is over, playoffs not yet generated ──
+  const rawLeague = actions.getRawLeague();
   const regularSeasonDone = week >= REGULAR_SEASON_WEEKS;
-  const inPlayoffs = phase === 'playoffs';
+  const inPlayoffs = phase === 'playoffs' || (phase === 'seasonReview' && !!rawLeague?.playoff?.championTeamId);
+  const inOffseason = phase === 'offseason';
+  const needsTrainingCamp = phase === 'preseason' && week === 0 && !rawLeague?.training?.camp?.completed;
+
+  if (inOffseason && mode === 'preview') {
+    return <OffseasonGate team={team} season={season} actions={actions} onNav={onNav} />;
+  }
+
+  if (needsTrainingCamp && mode === 'preview') {
+    return <PreseasonGate season={season} onNav={onNav} />;
+  }
 
   // Show season-complete screen
   if (regularSeasonDone && !inPlayoffs && mode === 'preview') {
@@ -481,6 +492,116 @@ function GameRecap({ team, opp, game, drives, week, isSeasonFinal, onNext }) {
 }
 
 // ── Season Complete Screen ─────────────────────────────────────
+function PreseasonGate({ season, onNav }) {
+  return (
+    <>
+      <Topbar
+        crumb={`Season ${season} / Training Camp`}
+        title="Training Camp"
+        actions={<button className="btn primary" onClick={() => onNav('training')}>Run Training Camp →</button>}
+      />
+      <div className="page">
+        <div className="card">
+          <div className="card-h"><h2>Week 1 Locked</h2><span className="right">Camp required</span></div>
+          <div className="card-b" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span className="chip outline">Required</span>
+            <span className="muted" style={{ flex: 1, fontSize: 13 }}>Run training camp after the draft and before the regular season opener.</span>
+            <button className="btn primary" onClick={() => onNav('training')}>Open Training →</button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function OffseasonGate({ team, season, actions, onNav }) {
+  const raw = actions.getRawLeague();
+  const freeAgencyComplete = !!raw?.offseasonEvents?.freeAgencyComplete;
+  const draftComplete = raw?.draft?.status === 'completed';
+  const hofEligible = raw?.hallOfFame?.eligiblePlayers || [];
+  const userBallot = raw?.hallOfFame?.ballotsByTeamId?.[team._engine?.id] || [];
+  const hofComplete = hofEligible.length === 0 || userBallot.length > 0;
+  const canStart = freeAgencyComplete && draftComplete && hofComplete;
+
+  function startNextSeason() {
+    if (actions.startNextSeason()) onNav('dashboard');
+  }
+
+  return (
+    <>
+      <Topbar
+        crumb={`Season ${season} / Offseason`}
+        title="Offseason"
+        actions={
+          canStart ? (
+            <button className="btn primary" onClick={startNextSeason}>Start Season {season + 1} →</button>
+          ) : (
+            <button className="btn primary" onClick={() => onNav(!freeAgencyComplete ? 'fa' : !draftComplete ? 'draft' : 'hof')}>
+              Continue Offseason →
+            </button>
+          )
+        }
+      />
+      <div className="page">
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div className="card-h"><h2>Required Offseason Events</h2><span className="right">Season {season + 1} locked until complete</span></div>
+          <div className="card-b" style={{ display: 'grid', gap: 10 }}>
+            <OffseasonTask
+              done={freeAgencyComplete}
+              title="Free Agency"
+              body="Make your offers, then resolve the offseason market before the draft."
+              action="Go to Free Agency"
+              onClick={() => onNav('fa')}
+            />
+            <OffseasonTask
+              done={draftComplete}
+              title="Draft"
+              body="Use your picks and finish the live draft before the new season can begin."
+              action="Go to Draft"
+              onClick={() => onNav('draft')}
+            />
+            <OffseasonTask
+              done={hofComplete}
+              title="Hall of Fame Ballot"
+              body={hofEligible.length ? "Cast your ballot for this year's eligible retired players." : 'No eligible retired players this year.'}
+              action="Open Ballot"
+              onClick={() => onNav('hof')}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-4">
+          <button className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => onNav('fa')}>
+            <div className="card-b"><strong>Free Agency</strong><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Make offers and reshape the roster.</div></div>
+          </button>
+          <button className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => onNav('contracts')}>
+            <div className="card-b"><strong>Contracts</strong><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Renegotiate deals during offseason.</div></div>
+          </button>
+          <button className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => onNav('trades')}>
+            <div className="card-b"><strong>Trade Center</strong><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Use the open trade window.</div></div>
+          </button>
+          <button className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => onNav('roster')}>
+            <div className="card-b"><strong>Roster</strong><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Review rookies, cuts, and cap space.</div></div>
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function OffseasonTask({ done, title, body, action, onClick }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: '1px solid var(--line-soft)', background: done ? 'rgba(78,230,160,0.08)' : 'var(--bg-1)' }}>
+      <span className={`chip ${done ? 'pos' : 'outline'}`}>{done ? 'Complete' : 'Required'}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800 }}>{title}</div>
+        <div className="muted" style={{ fontSize: 12 }}>{body}</div>
+      </div>
+      {!done && <button className="btn primary" onClick={onClick}>{action}</button>}
+    </div>
+  );
+}
+
 function SeasonComplete({ team, teams, season, actions, onNav }) {
   const [loading, setLoading] = useState(false);
   const raw = actions.getRawLeague();
@@ -624,7 +745,13 @@ function PlayoffHub({ team, teams, season, actions, onNav, playoffRoundGames, pl
               Simulate {roundLabel[nextRound]} →
             </button>
           ) : championshipDone ? (
-            <button className="btn" onClick={() => onNav('standings')}>View Standings</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn" onClick={() => { actions.finalizeSeasonReview(); onNav('awards'); }}>View Awards</button>
+              <button className="btn" onClick={() => onNav('hof')}>HOF Vote</button>
+              <button className="btn accent" onClick={() => { actions.beginOffseason(); onNav('draft'); }}>
+                Begin Offseason →
+              </button>
+            </div>
           ) : null
         }
       />

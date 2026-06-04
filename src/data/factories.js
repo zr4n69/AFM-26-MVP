@@ -32,6 +32,25 @@ const LAST_NAMES = Object.freeze([
   "Wells", "Maddox", "Price", "Hollis", "Foster", "Graves", "Monroe", "Vega", "Hayes", "Pierce"
 ]);
 
+export const FIXED_TEAM_PRESTIGE = Object.freeze([
+  3.2, // Portland Stags       – Competitive
+  4.5, // Austin Founders      – Elite
+  2.8, // Columbus Comets      – Average
+  3.8, // Sacramento Ridgebacks– Contender
+  2.2, // Orlando Pilots       – Average
+  4.2, // Memphis Kings        – Contender
+  3.0, // Omaha Steel          – Competitive
+  3.5, // Raleigh Redwoods     – Competitive
+  1.8, // Salt Lake Summit     – Rebuilding
+  4.8, // Milwaukee Harbors    – Elite
+  2.5, // San Antonio Marshals – Below Average
+  3.8, // Louisville Thoroughbreds – Contender
+  2.0, // Boise Cutthroats     – Rebuilding
+  4.0, // Birmingham Vulcans   – Contender
+  3.2, // Albuquerque Roadrunners – Competitive
+  2.8, // Providence Anchors   – Average
+]);
+
 export function createLeague(seed = "mvp", options = {}) {
   const rng = createRng(seed);
   const playerTeamIndex = options.playerTeamIndex ?? null;
@@ -71,6 +90,7 @@ export function createLeague(seed = "mvp", options = {}) {
     seasonHistory: [],
     freeAgents: createInitialFreeAgentPool(rng),
     prospectFreeAgents: [],
+    offseasonEvents: createOffseasonEventsState(),
     games: [],
     saves: [],
     autosaveLog: []
@@ -108,7 +128,7 @@ function createTeam(index, rng, overrides = {}) {
   const city = CITY_NAMES[index];
   const nickname = TEAM_NAMES[index];
   const division = Math.floor(index / LEAGUE_RULES.teamsPerDivision) + 1;
-  const prestige = overrides.prestige ?? Number((1 + rng.next() * 4).toFixed(2));
+  const prestige = overrides.prestige ?? FIXED_TEAM_PRESTIGE[index];
   const rosterStrength = overrides.rosterStrength ?? prestigeToRosterStrength(prestige, rng);
   const strategy = createStrategy({
     offensiveSystem: rng.pick(Object.values(OFFENSIVE_SYSTEMS)),
@@ -564,6 +584,12 @@ function createTrainingState() {
   };
 }
 
+function createOffseasonEventsState() {
+  return {
+    freeAgencyComplete: false
+  };
+}
+
 function createPlayoffState() {
   return {
     format: {
@@ -649,11 +675,11 @@ function eligiblePositionsFor(position) {
 }
 
 export function createRookieContractScale(overallPick) {
-  const topSalary = 22_000_000;
-  const bottomSalary = 2_000_000;
-  const decay = 0.08;
-  const t = Math.exp(-decay * (overallPick - 1));
-  const salary = Math.round(bottomSalary + (topSalary - bottomSalary) * t);
+  const topSalary = 25_000_000;
+  const bottomSalary = 1_500_000;
+  const totalPicks = LEAGUE_RULES.draftRounds * LEAGUE_RULES.picksPerRound;
+  const progress = Math.max(0, Math.min(1, (overallPick - 1) / Math.max(1, totalPicks - 1)));
+  const salary = Math.round(topSalary - (topSalary - bottomSalary) * progress);
   return createContractFromSalary(salary, 4, { guaranteedAmount: Math.round(salary * 0.8) });
 }
 
@@ -691,14 +717,14 @@ function emptyContractSummary() {
 }
 
 function salaryForOverall(overall, position, rng) {
-  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(position) ? 1.20 : 1;
+  const premium = ["QB", "EDGE", "OT", "WR", "CB"].includes(position) ? 1.16 : 1;
   const base =
-    overall >= 88 ? rng.int(240, 350) / 10 :
-    overall >= 82 ? rng.int(140, 220) / 10 :
-    overall >= 76 ? rng.int(80, 140) / 10 :
-    overall >= 70 ? rng.int(45, 80) / 10 :
-    overall >= 62 ? rng.int(20, 45) / 10 :
-    rng.int(12, 25) / 10;
+    overall >= 88 ? rng.int(170, 260) / 10 :
+    overall >= 82 ? rng.int(105, 165) / 10 :
+    overall >= 76 ? rng.int(60, 105) / 10 :
+    overall >= 70 ? rng.int(32, 60) / 10 :
+    overall >= 62 ? rng.int(16, 32) / 10 :
+    rng.int(8, 18) / 10;
   return Math.round(base * premium * 1_000_000);
 }
 

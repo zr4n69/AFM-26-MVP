@@ -5,6 +5,7 @@ import {
 } from "../data/constants.js";
 import {
   advanceSeasonPhase,
+  castHallOfFameVotes,
   enforceCapCompliance,
   generatePlayoffBracket,
   recordAwardWinner,
@@ -12,6 +13,7 @@ import {
 } from "../data/actions.js";
 import {
   createContractFromSalary,
+  salaryCapFromPrestige,
   createLeague,
   createStrategy,
   buildPositionSlots,
@@ -32,6 +34,7 @@ import { executeCpuAutoDraft, executeCpuOffseasonSignings, validateRosterComplia
 import { calculateTradeValue } from "./trade-value.js";
 
 export function runSeasonReview(league) {
+  if (league.awards?.regularSeasonProcessed) return league.awards.winners;
   advanceSeasonPhase(league, PHASES.SEASON_REVIEW);
   const awards = computeSeasonAwards(league);
   league.awards.regularSeasonProcessed = true;
@@ -47,8 +50,9 @@ export function runSeasonReview(league) {
   // Compute and record All-Pro teams
   computeAllProTeams(league);
 
-  // Process contract bonus expectations
+  // Process contract bonus expectations and season-level prestige movement.
   processContractBonuses(league);
+  updateFranchisePrestige(league);
 
   league.seasonHistory.push({
     season: league.currentSeason,
@@ -145,6 +149,46 @@ function runCpuToCpuTrades(league, rng) {
   return trades;
 }
 
+
+function updateFranchisePrestige(league) {
+  const standings = [...(league.standings || [])].sort((a, b) =>
+    (b.wins - a.wins) || ((b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst))
+  );
+  const bestRecordId = standings[0]?.teamId ?? null;
+  const bottomFourIds = new Set(standings.slice(-4).map(s => s.teamId));
+  const championId = league.playoff.championTeamId;
+  const playoffIds = new Set((league.playoff.seeds || []).map(seed => seed.teamId ?? seed));
+  const bestOffenseId = standings.slice().sort((a, b) => b.pointsFor - a.pointsFor)[0]?.teamId ?? null;
+  const bestDefenseId = standings.slice().sort((a, b) => a.pointsAgainst - b.pointsAgainst)[0]?.teamId ?? null;
+
+  const highestRatedId = league.teams
+    .map(team => ({
+      team,
+      rating: team.roster.length ? team.roster.reduce((sum, p) => sum + p.overall, 0) / team.roster.length : 0
+    }))
+    .sort((a, b) => b.rating - a.rating)[0]?.team.id ?? null;
+
+  league.prestigeHistory ??= [];
+  for (const team of league.teams) {
+    const before = team.prestige;
+    let delta = 0;
+    const reasons = [];
+    if (team.id === championId) { delta += 0.5; reasons.push('championship'); }
+    if (playoffIds.has(team.id)) { delta += 0.125; reasons.push('playoffs'); }
+    if (team.id === bestRecordId) { delta += 0.125; reasons.push('bestRecord'); }
+    if (team.id === highestRatedId) { delta += 0.125; reasons.push('highestRating'); }
+    if (team.id === bestOffenseId) { delta += 0.125; reasons.push('bestOffense'); }
+    if (team.id === bestDefenseId) { delta += 0.125; reasons.push('bestDefense'); }
+    if (bottomFourIds.has(team.id)) { delta -= 0.25; reasons.push('bottomFour'); }
+
+    const next = Math.max(1, Math.min(5, Math.round((before + delta) * 1000) / 1000));
+    team.prestige = next;
+    team.salaryCap = salaryCapFromPrestige(next);
+    refreshContractSummary(team);
+    league.prestigeHistory.push({ season: league.currentSeason, teamId: team.id, before, after: next, delta: next - before, reasons });
+  }
+}
+
 function processContractBonuses(league) {
   const playoffTeamIds = new Set(league.playoff.seeds || []);
   const championId = league.playoff.championTeamId;
@@ -186,6 +230,7 @@ function processContractBonuses(league) {
 
 export function runOffseason(league, options = {}) {
   advanceSeasonPhase(league, PHASES.OFFSEASON);
+  league.offseasonEvents = { freeAgencyComplete: false, ...(league.offseasonEvents || {}) };
   const rng = createRng(`offseason-${league.seed}-${league.currentSeason}`);
   const summary = {
     season: league.currentSeason,
@@ -206,6 +251,27 @@ export function runOffseason(league, options = {}) {
     summary.developmentChanges.push(...developments);
 
     resetSeasonState(team);
+  }
+
+  // CPU teams auto-vote HOF; the player submits their ballot during the offseason gate.
+  const hofEligible = league.hallOfFame?.eligiblePlayers || [];
+  if (hofEligible.length > 0) {
+    const ranked = [...hofEligible].sort((a, b) =>
+      ((b.awards?.length || 0) * 10 + (b.overall || 70)) -
+      ((a.awards?.length || 0) * 10 + (a.overall || 70))
+    );
+    for (const team of league.teams) {
+      if (team.isPlayerControlled) continue;
+      const teamRng = createRng(`hof-vote-${team.id}-${league.currentSeason}`);
+      const pool = ranked.slice(0, Math.min(8, ranked.length));
+      const votes = [];
+      while (votes.length < LEAGUE_RULES.hallOfFameVotesPerTeam && pool.length > 0) {
+        const idx = teamRng.int(0, Math.min(3, pool.length - 1));
+        votes.push(pool[idx].id);
+        pool.splice(idx, 1);
+      }
+      castHallOfFameVotes(league, team.id, votes);
+    }
   }
 
   summary.freeAgentRetirements = processFreeAgentRetirements(league, rng);
@@ -238,6 +304,7 @@ export function runOffseason(league, options = {}) {
     summary.freeAgency = runFreeAgencyPeriod(league, {
       seed: `fa-offseason-${league.seed}-${league.currentSeason}`
     });
+    league.offseasonEvents.freeAgencyComplete = true;
   }
 
   summary.capEnforcement = [];
@@ -248,7 +315,7 @@ export function runOffseason(league, options = {}) {
     }
   }
 
-  if (league.draft.status !== "completed") {
+  if (!options.skipDraft && league.draft.status !== "completed") {
     summary.draft = executeCpuAutoDraft(league, {
       seed: `autodraft-${league.seed}-${league.currentSeason}`
     });
@@ -297,6 +364,7 @@ export function advanceToNextSeason(league) {
     allPro: { firstTeam: [], secondTeam: [] },
     valueImpacts: []
   };
+  league.offseasonEvents = { freeAgencyComplete: false };
   league.training = {
     camp: { days: LEAGUE_RULES.trainingCampDays, completed: false, sessions: [] },
     regularSeason: {
