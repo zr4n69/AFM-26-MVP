@@ -180,8 +180,11 @@ function collectOffers(league, player, rng) {
 function teamWantsPlayer(team, player, rng) {
   const posCount = team.roster.filter((p) => p.position === player.position).length;
   const target = ROSTER_TEMPLATE[player.position] ?? 1;
+  const need = positionalNeed(team, player.position);
+  const capRoom = (team.contractSummary?.capSpace ?? 0) > estimateMarketSalary(player) * 4;
 
   if (posCount < Math.ceil(target * 0.6)) return rng.next() < 0.95;
+  if (capRoom && need > 0.35 && player.age <= 29 && player.overall >= 74) return rng.next() < 0.78;
   if (posCount < target && player.overall >= 70) return rng.next() < 0.70;
   if (player.overall >= 82) return rng.next() < 0.45;
   if (player.overall >= 75 && posCount < target) return rng.next() < 0.40;
@@ -191,7 +194,7 @@ function teamWantsPlayer(team, player, rng) {
 
 function cpuOfferSalary(player, team, rng) {
   const base = estimateMarketSalary(player);
-  const capFactor = team.contractSummary.capSpace > base * 3 ? 1.1 : 0.9;
+  const capFactor = team.contractSummary.capSpace > base * 5 && player.age <= 29 ? 1.2 : team.contractSummary.capSpace > base * 3 ? 1.1 : 0.9;
   const needFactor = positionalNeed(team, player.position) > 0.5 ? 1.15 : 1.0;
   const noise = 0.85 + rng.next() * 0.30;
   return Math.round(base * capFactor * needFactor * noise);

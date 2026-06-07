@@ -440,6 +440,7 @@ function applyFatigue(offense, defense, offensiveConcept, defensiveConcept) {
     const traitMod = player.traits.includes("highMotor") ? -1 : player.traits.includes("takesPlaysOff") ? 1 : 0;
     const delta = Math.max(0, offensiveDelta + traitMod);
     player.fatigue = clamp(player.fatigue + delta, 0, 100);
+    trackSeasonPlaytime(player, 1);
     changes.push({ playerId: player.id, delta });
   }
 
@@ -453,11 +454,20 @@ function applyFatigue(offense, defense, offensiveConcept, defensiveConcept) {
     const traitMod = player.traits.includes("highMotor") ? -1 : player.traits.includes("takesPlaysOff") ? 1 : 0;
     const delta = Math.max(0, defensiveDelta + traitMod);
     player.fatigue = clamp(player.fatigue + delta, 0, 100);
+    trackSeasonPlaytime(player, 1);
     changes.push({ playerId: player.id, delta });
   }
   rotateSubstitutions(offense);
   rotateSubstitutions(defense);
   return changes;
+}
+
+function trackSeasonPlaytime(player, snaps) {
+  if (!player?.development) return;
+  player.development.seasonPlaytime = (player.development.seasonPlaytime || 0) + snaps;
+  if (player.development.seasonPlaytime >= 80) {
+    player.development.meaningfulPlaytime = true;
+  }
 }
 
 const SUB_FATIGUE_THRESHOLD = 55;

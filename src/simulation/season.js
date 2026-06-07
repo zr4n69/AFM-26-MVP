@@ -6,8 +6,10 @@ import {
 import {
   advanceSeasonPhase,
   castHallOfFameVotes,
+  completeTrade,
   enforceCapCompliance,
   generatePlayoffBracket,
+  proposeTrade,
   recordAwardWinner,
   recordAutosave
 } from "../data/actions.js";
@@ -31,7 +33,7 @@ import {
 } from "./engine.js";
 import { runFreeAgencyPeriod } from "./free-agency.js";
 import { executeCpuAutoDraft, executeCpuOffseasonSignings, validateRosterCompliance, repairRosterCompliance } from "./cpu-ai.js";
-import { calculateTradeValue } from "./trade-value.js";
+import { BUILD_PHASES, assessTeamBuildPhase, calculateTradeValue, evaluateCpuTradeResponse } from "./trade-value.js";
 
 export function runSeasonReview(league) {
   if (league.awards?.regularSeasonProcessed) return league.awards.winners;
@@ -102,9 +104,20 @@ function computeAllProTeams(league) {
 function runCpuToCpuTrades(league, rng) {
   const trades = [];
   const cpuTeams = league.teams.filter(t => !t.isPlayerControlled);
-  const maxTrades = Math.min(3, Math.floor(cpuTeams.length / 4));
+  const maxTrades = Math.min(6, Math.max(3, Math.floor(cpuTeams.length / 3)));
+  const postures = new Map(cpuTeams.map((team) => [team.id, assessTeamBuildPhase(league, team)]));
 
-  for (let attempt = 0; attempt < maxTrades; attempt++) {
+  for (let attempt = 0; attempt < maxTrades * 2 && trades.length < maxTrades; attempt++) {
+    const strategic =
+      tryCapAbsorptionCpuTrade(league, cpuTeams, postures, rng)
+      || tryRebuilderSellTrade(league, cpuTeams, postures, rng)
+      || tryStrategicCpuTrade(league, cpuTeams, postures, rng);
+    if (!strategic) continue;
+    trades.push(strategic);
+    league.tradeMarket.cpuToCpuTrades.push(strategic);
+  }
+
+  for (let attempt = 0; attempt < maxTrades && trades.length < maxTrades; attempt++) {
     if (cpuTeams.length < 2) break;
     const teamA = rng.pick(cpuTeams);
     const teamB = rng.pick(cpuTeams.filter(t => t.id !== teamA.id));
@@ -132,11 +145,13 @@ function runCpuToCpuTrades(league, rng) {
     const outVal = calculateTradeValue(league, teamB.id, { playerIds: [offered.id], pickIds: [] });
     if (outVal <= 0 || inVal / outVal < 0.7) continue;
 
-    // Execute the swap
-    teamA.roster = teamA.roster.filter(p => p.id !== giving.id);
-    teamB.roster = teamB.roster.filter(p => p.id !== offered.id);
-    teamA.roster.push(offered);
-    teamB.roster.push(giving);
+    const trade = proposeTrade(league, teamA.id, teamB.id, {
+      offeredPlayerIds: [giving.id],
+      requestedPlayerIds: [offered.id],
+      notes: ["cpuNeedSwap"]
+    });
+    trade.status = "accepted";
+    completeTrade(league, trade.id);
 
     const record = {
       fromTeamId: teamA.id, toTeamId: teamB.id,
@@ -147,6 +162,308 @@ function runCpuToCpuTrades(league, rng) {
     league.tradeMarket.cpuToCpuTrades.push(record);
   }
   return trades;
+}
+
+function tryCapAbsorptionCpuTrade(league, cpuTeams, postures, rng) {
+  const absorbers = shuffled(cpuTeams, rng).filter((team) => {
+    const phase = postures.get(team.id)?.phase;
+    const capSpace = team.contractSummary?.capSpace ?? 0;
+    return (phase === BUILD_PHASES.REBUILDING || phase === BUILD_PHASES.RETOOLING)
+      && capSpace > (team.salaryCap || 200_000_000) * 0.12
+      && team.roster.length < LEAGUE_RULES.rosterLimit;
+  });
+  if (absorbers.length === 0) return null;
+
+  const senders = shuffled(cpuTeams, rng).filter((team) => {
+    const phase = postures.get(team.id)?.phase;
+    return phase === BUILD_PHASES.CONTENDING
+      || phase === BUILD_PHASES.ALL_IN
+      || (team.contractSummary?.capSpace ?? 0) < (team.salaryCap || 200_000_000) * 0.04;
+  });
+
+  for (const absorber of absorbers) {
+    for (const sender of senders) {
+      if (sender.id === absorber.id) continue;
+      const dumpCandidate = sender.roster
+        .filter((player) =>
+          player.age >= 30
+          && player.overall >= 72
+          && player.overall <= 82
+          && (player.contract?.capHit || 0) >= 8_000_000
+          && (absorber.contractSummary?.capSpace ?? 0) > (player.contract?.capHit || 0) + 2_000_000
+          && sender.roster.filter((candidate) => candidate.position === player.position).length > Math.max(1, Math.floor((ROSTER_TEMPLATE[player.position] || 1) * 0.6))
+        )
+        .sort((a, b) => (b.contract?.capHit || 0) - (a.contract?.capHit || 0))[0];
+      if (!dumpCandidate) continue;
+
+      const compensationPickIds = chooseCapDumpPickPackage(league, sender, dumpCandidate);
+      if (compensationPickIds.length === 0) continue;
+
+      const trade = proposeTrade(league, sender.id, absorber.id, {
+        offeredPlayerIds: [dumpCandidate.id],
+        offeredPickIds: compensationPickIds,
+        notes: ["cpuCapAbsorption"]
+      });
+      const response = evaluateCpuTradeResponse(league, trade);
+      if (response.response !== "accepted" && response.effectiveRatio < 90) {
+        trade.status = "rejected";
+        continue;
+      }
+
+      trade.status = "accepted";
+      completeTrade(league, trade.id);
+      return {
+        fromTeamId: sender.id,
+        toTeamId: absorber.id,
+        type: "capAbsorption",
+        given: {
+          playerId: dumpCandidate.id,
+          name: `${dumpCandidate.firstName} ${dumpCandidate.lastName}`,
+          position: dumpCandidate.position,
+          pickIds: compensationPickIds
+        },
+        received: { capRelief: dumpCandidate.contract?.capHit || 0 },
+        response
+      };
+    }
+  }
+
+  return null;
+}
+
+function tryStrategicCpuTrade(league, cpuTeams, postures, rng) {
+  const buyers = cpuTeams.filter((team) => {
+    const phase = postures.get(team.id)?.phase;
+    return phase === BUILD_PHASES.CONTENDING || phase === BUILD_PHASES.ALL_IN;
+  });
+  const sellers = cpuTeams.filter((team) => {
+    const phase = postures.get(team.id)?.phase;
+    return phase === BUILD_PHASES.REBUILDING || phase === BUILD_PHASES.RETOOLING;
+  });
+
+  if (buyers.length === 0 || sellers.length === 0) return null;
+
+  const buyer = rng.pick(buyers);
+  const neededPositions = Object.entries(ROSTER_TEMPLATE)
+    .filter(([position, target]) => buyer.roster.filter((player) => player.position === position).length < target)
+    .map(([position]) => position);
+  if (neededPositions.length === 0) return null;
+
+  const sellerPool = shuffled(sellers.filter((team) => team.id !== buyer.id), rng);
+  for (const seller of sellerPool) {
+    const sellerCandidates = seller.roster
+      .filter((player) =>
+        neededPositions.includes(player.position)
+        && player.overall >= 76
+        && player.age >= 27
+        && !isYoungCoreAsset(player)
+        && seller.roster.filter((candidate) => candidate.position === player.position).length > Math.max(1, Math.floor((ROSTER_TEMPLATE[player.position] || 1) * 0.55))
+      )
+      .sort((a, b) => b.overall - a.overall);
+    if (sellerCandidates.length === 0) continue;
+
+    const targetPlayer = sellerCandidates[0];
+    const offeredPickIds = chooseContenderPickPackage(league, buyer, seller, targetPlayer);
+    if (offeredPickIds.length === 0) continue;
+
+    const trade = proposeTrade(league, buyer.id, seller.id, {
+      offeredPickIds,
+      requestedPlayerIds: [targetPlayer.id],
+      notes: ["cpuStrategicTrade"]
+    });
+    const response = evaluateCpuTradeResponse(league, trade);
+    if (response.response !== "accepted" && response.effectiveRatio < 90) {
+      trade.status = "rejected";
+      continue;
+    }
+
+    trade.status = "accepted";
+    completeTrade(league, trade.id);
+    return {
+      fromTeamId: buyer.id,
+      toTeamId: seller.id,
+      type: "contenderBuy",
+      given: { pickIds: offeredPickIds },
+      received: {
+        playerId: targetPlayer.id,
+        name: `${targetPlayer.firstName} ${targetPlayer.lastName}`,
+        position: targetPlayer.position
+      },
+      response
+    };
+  }
+
+  return null;
+}
+
+function tryRebuilderSellTrade(league, cpuTeams, postures, rng) {
+  const sellers = shuffled(cpuTeams, rng).filter((team) => {
+    const phase = postures.get(team.id)?.phase;
+    return phase === BUILD_PHASES.REBUILDING || phase === BUILD_PHASES.RETOOLING;
+  });
+  const buyers = shuffled(cpuTeams, rng).filter((team) => {
+    const phase = postures.get(team.id)?.phase;
+    return phase === BUILD_PHASES.CONTENDING || phase === BUILD_PHASES.ALL_IN || phase === BUILD_PHASES.BALANCED;
+  });
+
+  for (const seller of sellers) {
+    const veteran = findSellableVeteran(seller);
+    if (!veteran) continue;
+
+    for (const buyer of buyers) {
+      if (buyer.id === seller.id) continue;
+      if (!isBuyerFitForVeteran(buyer, veteran, postures.get(buyer.id))) continue;
+
+      const requestedPickIds = chooseBuyerPickPackageForVeteran(league, buyer, seller, veteran);
+      if (requestedPickIds.length === 0) continue;
+
+      const trade = proposeTrade(league, seller.id, buyer.id, {
+        offeredPlayerIds: [veteran.id],
+        requestedPickIds,
+        notes: ["cpuRebuilderSell"]
+      });
+      const response = evaluateCpuTradeResponse(league, trade);
+      if (response.response !== "accepted" && response.effectiveRatio < 88) {
+        trade.status = "rejected";
+        continue;
+      }
+
+      trade.status = "accepted";
+      completeTrade(league, trade.id);
+      return {
+        fromTeamId: seller.id,
+        toTeamId: buyer.id,
+        type: "rebuilderSell",
+        given: {
+          playerId: veteran.id,
+          name: `${veteran.firstName} ${veteran.lastName}`,
+          position: veteran.position
+        },
+        received: { pickIds: requestedPickIds },
+        response
+      };
+    }
+  }
+
+  return null;
+}
+
+function chooseContenderPickPackage(league, buyer, seller, targetPlayer) {
+  const playerValue = calculateTradeValue(league, seller.id, { playerIds: [targetPlayer.id], pickIds: [] });
+  const picks = league.draft.picks
+    .filter((pick) => pick.currentTeamId === buyer.id && !pick.selectedProspectId)
+    .filter((pick) => {
+      if (pick.overallPick <= 8) return false;
+      if (pick.round === 1) return targetPlayer.overall >= 84;
+      return pick.round >= 2 && pick.round <= 4;
+    })
+    .sort((a, b) => calculateDraftPickSortWeight(a) - calculateDraftPickSortWeight(b));
+
+  const offered = [];
+  let value = 0;
+  const minRatio = targetPlayer.overall >= 84 ? 0.78 : 0.68;
+  const maxRatio = targetPlayer.overall >= 84 ? 1.35 : 1.15;
+
+  for (const pick of picks) {
+    const pickValue = calculateTradeValue(league, buyer.id, { pickIds: [pick.id] });
+    if (value > 0 && (value + pickValue) / Math.max(1, playerValue) > maxRatio) continue;
+    offered.push(pick.id);
+    value += pickValue;
+    if (value / Math.max(1, playerValue) >= minRatio) break;
+  }
+
+  if (value / Math.max(1, playerValue) < minRatio) return [];
+  return offered;
+}
+
+function chooseCapDumpPickPackage(league, sender, dumpCandidate) {
+  const capHitM = (dumpCandidate.contract?.capHit || 0) / 1_000_000;
+  const picks = league.draft.picks
+    .filter((pick) => pick.currentTeamId === sender.id && !pick.selectedProspectId)
+    .filter((pick) => {
+      if (pick.overallPick <= 16) return false;
+      if (capHitM >= 16) return pick.round >= 2 && pick.round <= 4;
+      return pick.round >= 3 && pick.round <= 5;
+    })
+    .sort((a, b) => a.round - b.round || a.overallPick - b.overallPick);
+
+  if (picks.length === 0) return [];
+  const packageSize = capHitM >= 16 ? 2 : 1;
+  return picks.slice(0, packageSize).map((pick) => pick.id);
+}
+
+function chooseBuyerPickPackageForVeteran(league, buyer, seller, veteran) {
+  const playerValue = calculateTradeValue(league, seller.id, { playerIds: [veteran.id], pickIds: [] });
+  const picks = league.draft.picks
+    .filter((pick) => pick.currentTeamId === buyer.id && !pick.selectedProspectId)
+    .filter((pick) => {
+      if (pick.overallPick <= 16) return veteran.overall >= 84 && veteran.age <= 30;
+      return pick.round >= 2 && pick.round <= 5;
+    })
+    .sort((a, b) => a.round - b.round || a.overallPick - b.overallPick);
+
+  const offered = [];
+  let value = 0;
+  const minRatio = veteran.overall >= 82 ? 0.72 : 0.58;
+  const maxRatio = veteran.overall >= 82 ? 1.2 : 1.0;
+
+  for (const pick of picks) {
+    const pickValue = calculateTradeValue(league, buyer.id, { pickIds: [pick.id] });
+    if (value > 0 && (value + pickValue) / Math.max(1, playerValue) > maxRatio) continue;
+    offered.push(pick.id);
+    value += pickValue;
+    if (value / Math.max(1, playerValue) >= minRatio) break;
+  }
+
+  if (value / Math.max(1, playerValue) < minRatio) return [];
+  return offered;
+}
+
+function findSellableVeteran(team) {
+  return team.roster
+    .filter((player) =>
+      player.age >= 28
+      && player.overall >= 74
+      && player.overall <= 84
+      && !isYoungCoreAsset(player)
+      && team.roster.filter((candidate) => candidate.position === player.position).length > Math.max(1, Math.floor((ROSTER_TEMPLATE[player.position] || 1) * 0.65))
+    )
+    .sort((a, b) =>
+      (b.age - a.age)
+      || (b.contract?.capHit || 0) - (a.contract?.capHit || 0)
+      || b.overall - a.overall
+    )[0];
+}
+
+function isBuyerFitForVeteran(buyer, veteran, posture) {
+  const samePosition = buyer.roster.filter((player) => player.position === veteran.position);
+  const target = ROSTER_TEMPLATE[veteran.position] || 1;
+  const best = Math.max(0, ...samePosition.map((player) => player.overall || 0));
+  const need = samePosition.length < target || veteran.overall >= best + 5;
+  const winNow = posture?.phase === BUILD_PHASES.CONTENDING || posture?.phase === BUILD_PHASES.ALL_IN;
+  const balancedGoodFit = posture?.phase === BUILD_PHASES.BALANCED && veteran.age <= 30 && veteran.overall >= 78;
+  return need && (winNow || balancedGoodFit) && (buyer.contractSummary?.capSpace ?? 0) > (veteran.contract?.capHit || 0);
+}
+
+function calculateDraftPickSortWeight(pick) {
+  if (pick.round === 2) return 0;
+  if (pick.round === 3) return 1;
+  if (pick.round === 4) return 2;
+  return 3;
+}
+
+function isYoungCoreAsset(player) {
+  const ceiling = player.development?.potentialCeiling ?? player.overall;
+  return player.age <= 25 && (player.overall >= 72 || (player.potentialStars || 1) >= 4 || ceiling - player.overall >= 5);
+}
+
+function shuffled(items, rng) {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = rng.int(0, index);
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
 }
 
 
@@ -173,13 +490,24 @@ function updateFranchisePrestige(league) {
     const before = team.prestige;
     let delta = 0;
     const reasons = [];
+    const youngCoreScore = rebuildingCoreScore(team);
+    const previousStanding = league.seasonHistory?.at(-1)?.standings?.find((standing) => standing.teamId === team.id);
+    const winsImproved = previousStanding ? (team.standings?.wins || 0) >= (previousStanding.wins || 0) + 2 : false;
     if (team.id === championId) { delta += 0.5; reasons.push('championship'); }
     if (playoffIds.has(team.id)) { delta += 0.125; reasons.push('playoffs'); }
     if (team.id === bestRecordId) { delta += 0.125; reasons.push('bestRecord'); }
     if (team.id === highestRatedId) { delta += 0.125; reasons.push('highestRating'); }
     if (team.id === bestOffenseId) { delta += 0.125; reasons.push('bestOffense'); }
     if (team.id === bestDefenseId) { delta += 0.125; reasons.push('bestDefense'); }
-    if (bottomFourIds.has(team.id)) { delta -= 0.25; reasons.push('bottomFour'); }
+    if (bottomFourIds.has(team.id)) {
+      const penalty = youngCoreScore >= 6 ? -0.075 : youngCoreScore >= 4 ? -0.125 : -0.25;
+      delta += penalty;
+      reasons.push(penalty > -0.25 ? 'bottomFourYoungCoreProtected' : 'bottomFour');
+    }
+    if (!bottomFourIds.has(team.id) && youngCoreScore >= 5 && winsImproved) {
+      delta += 0.05;
+      reasons.push('youngCoreProgress');
+    }
 
     const next = Math.max(1, Math.min(5, Math.round((before + delta) * 1000) / 1000));
     team.prestige = next;
@@ -187,6 +515,22 @@ function updateFranchisePrestige(league) {
     refreshContractSummary(team);
     league.prestigeHistory.push({ season: league.currentSeason, teamId: team.id, before, after: next, delta: next - before, reasons });
   }
+}
+
+function rebuildingCoreScore(team) {
+  const youngCore = team.roster.filter((player) =>
+    player.age <= 25
+    && (
+      player.overall >= 70
+      || (player.potentialStars || 1) >= 4
+      || (player.development?.potentialCeiling ?? player.overall) - player.overall >= 5
+    )
+  ).length;
+  const recentGrowth = team.roster.filter((player) =>
+    player.age <= 26 && (player.development?.lastTrainingGain || 0) > 0
+  ).length;
+  const topYoung = team.roster.filter((player) => player.age <= 25 && player.overall >= 74).length;
+  return youngCore + Math.min(3, recentGrowth) + topYoung;
 }
 
 function processContractBonuses(league) {
@@ -284,6 +628,10 @@ export function runOffseason(league, options = {}) {
   for (const player of league.freeAgents) {
     player.fatigue = 0;
     for (const key of Object.keys(player.stats)) player.stats[key] = 0;
+    if (player.development) {
+      player.development.meaningfulPlaytime = false;
+      player.development.seasonPlaytime = 0;
+    }
     if (player.health.status !== "healthy" && player.health.weeksRemaining <= 3) {
       player.health = { status: "healthy", injury: null, weeksRemaining: 0 };
     }
@@ -553,24 +901,52 @@ function processDevelopment(team, rng) {
   const changes = [];
   const moraleBonus = (team.morale?.score ?? 50) >= 70 ? 1 : (team.morale?.score ?? 50) <= 30 ? -1 : 0;
   for (const player of team.roster) {
-    if (player.age <= 26 && player.overall < player.development.potentialCeiling) {
-      const playtimeBonus = player.development?.meaningfulPlaytime ? 1 : 0;
-      // Base gain reduced from 0-3 to 0-2; total capped at 3
-      const rawGain = rng.int(0, 2) + moraleBonus + playtimeBonus;
-      const gain = Math.max(0, Math.min(3, rawGain));
-      const newOverall = Math.min(player.development.potentialCeiling, player.overall + gain);
+    const ceiling = player.development?.potentialCeiling ?? player.overall;
+    const headroom = ceiling - player.overall;
+    if (headroom > 0 && player.age <= 28) {
+      const usageScore = seasonUsageScore(player);
+      const meaningfulUsage = usageScore >= 0.35 || player.development?.meaningfulPlaytime;
+      const playtimeBonus = usageScore >= 0.75 ? 2 : usageScore >= 0.35 ? 1 : 0;
+      const upsideBonus = player.age <= 25 && (player.potentialStars || 1) >= 4 && meaningfulUsage ? 1 : 0;
+      const ageBase =
+        player.age <= 23 ? rng.int(0, 2) :
+        player.age <= 26 ? rng.int(0, 1) :
+        meaningfulUsage ? rng.int(0, 1) : 0;
+      const maxGain = player.age <= 23 ? 4 : player.age <= 26 ? 3 : 2;
+      const rawGain = ageBase + moraleBonus + playtimeBonus + upsideBonus;
+      const gain = Math.max(0, Math.min(maxGain, rawGain, headroom));
+      const newOverall = Math.min(ceiling, player.overall + gain);
       if (newOverall !== player.overall) {
         const previousOverall = player.overall;
-        changes.push({ playerId: player.id, from: previousOverall, to: newOverall, type: "growth" });
+        changes.push({ playerId: player.id, from: previousOverall, to: newOverall, type: "growth", usageScore });
         player.development.lastTrainingGain = newOverall - previousOverall;
         player.overall = newOverall;
       }
-      if (player.overall >= player.development.potentialCeiling - 2) {
+      if (player.overall >= ceiling - 2) {
         player.development.developmentState = "nearCeiling";
       }
     }
   }
   return changes;
+}
+
+function seasonUsageScore(player) {
+  const playtime = player.development?.seasonPlaytime || 0;
+  const stats = player.stats || {};
+  const production =
+    stats.passingYards / 28
+    + stats.rushingYards / 14
+    + stats.receivingYards / 14
+    + (stats.tackles || 0) * 2.2
+    + (stats.tacklesForLoss || 0) * 4
+    + (stats.sacks || 0) * 7
+    + (stats.interceptions || 0) * 9
+    + (stats.passDeflections || 0) * 3
+    + (stats.puntDeflections || 0) * 5
+    + (stats.kickDeflections || 0) * 5;
+  const playtimeScore = Math.min(1, playtime / 180);
+  const productionScore = Math.min(1, production / 140);
+  return Math.max(playtimeScore, productionScore);
 }
 
 function processAgingDeclines(players, rng) {
@@ -608,6 +984,10 @@ function resetSeasonState(team) {
     for (const key of Object.keys(player.stats)) {
       player.careerStats[key] = (player.careerStats[key] || 0) + player.stats[key];
       player.stats[key] = 0;
+    }
+    if (player.development) {
+      player.development.meaningfulPlaytime = false;
+      player.development.seasonPlaytime = 0;
     }
     player.fatigue = 0;
     player.rookie = false;
@@ -745,11 +1125,15 @@ function createNextDraftClass(rng, season) {
 function createNextDraftState(teams, draftClass, season, standings) {
   const draftOrder = buildDraftOrder(teams, standings);
   const picks = [];
+  for (const team of teams) {
+    team.draftPicks = [];
+  }
   for (let round = 1; round <= LEAGUE_RULES.draftRounds; round += 1) {
     for (let slot = 1; slot <= LEAGUE_RULES.picksPerRound; slot += 1) {
       const overallPick = (round - 1) * LEAGUE_RULES.picksPerRound + slot;
       const originalTeamId = draftOrder[slot - 1];
-      picks.push({
+      const originalTeam = teams.find((team) => team.id === originalTeamId);
+      const pick = {
         id: makeId("pick", [season, round, slot]),
         season,
         round,
@@ -759,7 +1143,9 @@ function createNextDraftState(teams, draftClass, season, standings) {
         currentTeamId: originalTeamId,
         prospectId: null,
         rookieContract: createRookieContractScale(overallPick)
-      });
+      };
+      picks.push(pick);
+      originalTeam.draftPicks.push(pick.id);
     }
   }
   return {
@@ -791,4 +1177,3 @@ function buildDraftOrder(teams, standings) {
   });
   return sorted.map((entry) => entry.teamId);
 }
-

@@ -165,9 +165,9 @@ export function convertProspectToPlayer(league, prospect, teamId, rng) {
 
   const ceiling = potentialCeilings[potentialStars];
 
-  // Rookie OVR: top-16 picks floor at 60, others floor at 55
+  // Rookie OVR: premium picks should be safer, later picks remain volatile.
   const pickNumber = prospect.expectedDraftPosition ?? 999;
-  const floorOvr = pickNumber <= 16 ? 60 : 55;
+  const floorOvr = pickNumber <= 8 ? 64 : pickNumber <= 16 ? 62 : 55;
   const maxStartOvr = Math.min(ceiling, projectedMid + rng.int(-2, 5));
   const overall = Math.max(floorOvr, Math.min(ceiling, rng.int(floorOvr, maxStartOvr)));
 

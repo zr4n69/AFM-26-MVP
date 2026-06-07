@@ -3,6 +3,14 @@ import { useLeague } from '../context/LeagueContext.jsx';
 import { Topbar, ColorBlock, OvrPill, Stars, TradeChip, formatM } from '../components/Chrome.jsx';
 import { isTradeWindowOpen } from '../data/bridge.js';
 
+const POSITION_TARGETS = {
+  QB: 3, RB: 4, WR: 7, TE: 4, OT: 5, OG: 5, C: 2,
+  EDGE: 5, DT: 5, LB: 5, CB: 5, S: 3, K: 1, P: 1
+};
+
+const NEED_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C', 'EDGE', 'DT', 'LB', 'CB', 'S', 'K', 'P'];
+const PREMIUM_POSITIONS = new Set(['QB', 'EDGE', 'OT', 'WR', 'CB']);
+
 function tradeStatLine(p) {
   const s = p.careerStats || {};
   const pos = p._engine?.position || p.pos;
@@ -32,6 +40,129 @@ function tradeStatLine(p) {
     return tkl > 0 ? `${tkl} tkl, ${ints} INT` : null;
   }
   return null;
+}
+
+function enginePosToUi(pos) {
+  return pos === 'DL' ? 'DT' : pos;
+}
+
+function starterCountFor(team, pos) {
+  const enginePos = pos === 'DT' ? 'DL' : pos;
+  return team?.schemeStarters?.[enginePos] || 0;
+}
+
+function schemeDeficitFor(team, pos) {
+  const enginePos = pos === 'DT' ? 'DL' : pos;
+  return team?.rosterNeeds?.schemeNeeds?.find(n => enginePosToUi(n.position) === pos)?.deficit || 0;
+}
+
+function injuryNeedFor(team, pos) {
+  return (team?.rosterNeeds?.injuryNeeds || []).some(p => enginePosToUi(p) === pos);
+}
+
+function summarizeTeamNeeds(team, limit = 5) {
+  if (!team?.roster?.length) return [];
+
+  const needs = NEED_POSITIONS.map(pos => {
+    const players = team.roster
+      .filter(p => p.pos === pos)
+      .sort((a, b) => b.ovr - a.ovr);
+    const count = players.length;
+    const target = POSITION_TARGETS[pos] || 1;
+    const starters = starterCountFor(team, pos);
+    const starterSample = Math.max(1, starters || (pos === 'K' || pos === 'P' ? 1 : Math.min(2, target)));
+    const starterGroup = players.slice(0, starterSample);
+    const topOvr = players[0]?.ovr || 0;
+    const avgStarterOvr = starterGroup.length
+      ? Math.round(starterGroup.reduce((sum, p) => sum + p.ovr, 0) / starterGroup.length)
+      : 0;
+    const starterDeficit = starters > 0 ? Math.max(0, starters - count) : 0;
+    const depthMin = starters > 0 ? Math.min(target, starters + 1) : Math.min(target, 1);
+    const depthDeficit = Math.max(schemeDeficitFor(team, pos), Math.max(0, depthMin - count));
+    const injuryNeed = injuryNeedFor(team, pos);
+    const qualityTarget = PREMIUM_POSITIONS.has(pos) ? 76 : (pos === 'K' || pos === 'P' ? 68 : 73);
+    const qualityGap = Math.max(0, qualityTarget - avgStarterOvr);
+    const score =
+      starterDeficit * 46
+      + depthDeficit * 18
+      + qualityGap * (PREMIUM_POSITIONS.has(pos) ? 1.7 : 1.35)
+      + (injuryNeed ? 28 : 0);
+
+    let tag = 'Depth OK';
+    if (starterDeficit > 0) tag = 'Missing starter';
+    else if (injuryNeed) tag = 'Starter hurt';
+    else if (depthDeficit > 0) tag = 'Short depth';
+    else if (avgStarterOvr < qualityTarget - 4) tag = 'Weak top-end';
+    else if (avgStarterOvr < qualityTarget) tag = 'Upgrade possible';
+
+    return {
+      pos,
+      count,
+      target,
+      topOvr,
+      avgStarterOvr,
+      score: Math.round(score),
+      tag,
+    };
+  });
+
+  return needs
+    .sort((a, b) => b.score - a.score || a.avgStarterOvr - b.avgStarterOvr)
+    .slice(0, limit);
+}
+
+function NeedRow({ need, accent = 'var(--accent)' }) {
+  const bar = Math.max(8, Math.min(100, need.score));
+  const urgent = need.score >= 35;
+  return (
+    <div style={{ padding: '8px 0', borderBottom: '1px solid var(--line-soft)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '42px 1fr auto', gap: 8, alignItems: 'center' }}>
+        <span className="mono" style={{ fontWeight: 800 }}>{need.pos}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ height: 5, borderRadius: 4, background: 'var(--line-soft)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${bar}%`, background: urgent ? 'var(--neg)' : accent }} />
+          </div>
+          <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+            {need.count}/{need.target} · best {need.topOvr || '—'} · avg {need.avgStarterOvr || '—'}
+          </div>
+        </div>
+        <span className={`chip ${urgent ? '' : 'outline'}`} style={{ fontSize: 9, whiteSpace: 'nowrap' }}>
+          {need.tag}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function NeedsList({ team, empty = 'No roster data', accent }) {
+  const needs = summarizeTeamNeeds(team, 5);
+  if (!needs.length) {
+    return <div className="muted" style={{ padding: '12px 0', fontSize: 12 }}>{empty}</div>;
+  }
+  return needs.map(need => <NeedRow key={`${team.id}-${need.pos}`} need={need} accent={accent} />);
+}
+
+function MarketNeeds({ teams }) {
+  const rows = teams
+    .map(team => ({ team, needs: summarizeTeamNeeds(team, 3) }))
+    .filter(row => row.needs.length)
+    .sort((a, b) => b.needs[0].score - a.needs[0].score)
+    .slice(0, 5);
+
+  if (!rows.length) return <div className="muted" style={{ padding: '12px 0', fontSize: 12 }}>No team needs available</div>;
+
+  return rows.map(({ team, needs }) => (
+    <div key={team.id} style={{ padding: '8px 0', borderBottom: '1px solid var(--line-soft)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <ColorBlock team={team} size={14} />
+        <span className="mono" style={{ width: 34 }}>{team.abbr}</span>
+        <span style={{ fontSize: 12, fontWeight: 700 }}>{needs.map(n => n.pos).join(' · ')}</span>
+      </div>
+      <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+        {needs[0].tag} at {needs[0].pos} · best {needs[0].topOvr || '—'}
+      </div>
+    </div>
+  ));
 }
 
 export function ScreenTrades({ onNav }) {
@@ -248,15 +379,33 @@ export function ScreenTrades({ onNav }) {
             </div>
 
             <div className="card" style={{ marginBottom: 14 }}>
-              <div className="card-h"><h2>CPU Urgency Triggers</h2></div>
+              <div className="card-h"><h2>Roster Needs</h2><span className="right">{targetTeam ? targetTeam.abbr : 'Market'}</span></div>
               <div className="card-b" style={{ fontSize: 13 }}>
-                <ul style={{ margin: 0, paddingLeft: 18 }}>
-                  <li>Missing required-position starter</li>
-                  <li>Scheme-critical player gap</li>
-                  <li>Need to reduce cap deficit</li>
-                  <li>Contender adding production</li>
-                  <li>Rebuilder collecting picks / youth</li>
-                </ul>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <ColorBlock team={userTeam} size={14} />
+                      <strong>Your weakest spots</strong>
+                    </div>
+                    <NeedsList team={userTeam} accent="var(--pos)" />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      {targetTeam ? <ColorBlock team={targetTeam} size={14} /> : <span style={{ width: 14, height: 14, borderRadius: 3, border: '1px solid var(--line)' }} />}
+                      <strong>{targetTeam ? `${targetTeam.abbr} needs` : 'Partner needs'}</strong>
+                    </div>
+                    {targetTeam
+                      ? <NeedsList team={targetTeam} accent={targetTeam.secondary || 'var(--accent)'} />
+                      : <div className="muted" style={{ padding: '12px 0', fontSize: 12 }}>Select a trade partner</div>}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span className="chip outline" style={{ fontSize: 9 }}>CPU</span>
+                      <strong>Market watch</strong>
+                    </div>
+                    <MarketNeeds teams={otherTeams} />
+                  </div>
+                </div>
               </div>
             </div>
 

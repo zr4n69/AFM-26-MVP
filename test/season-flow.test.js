@@ -86,6 +86,13 @@ test("advanceToNextSeason resets schedule, standings, draft, and increments seas
   assert.equal(league.standings.every((s) => s.wins === 0 && s.losses === 0), true);
   assert.equal(league.schedule.length, 10);
   assert.ok(league.draftClass.length > 0);
+  for (const team of league.teams) {
+    const ownedPickIds = league.draft.picks
+      .filter((pick) => pick.currentTeamId === team.id)
+      .map((pick) => pick.id)
+      .sort();
+    assert.deepEqual([...team.draftPicks].sort(), ownedPickIds);
+  }
   assert.equal(league.playoff.championTeamId, null);
   assert.equal(league.awards.regularSeasonProcessed, false);
 });

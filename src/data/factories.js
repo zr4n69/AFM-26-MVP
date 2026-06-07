@@ -491,9 +491,10 @@ export function buildPositionSlots(rng, positions, totalSize) {
 
 export function generateProspectRating(index, rng, classStrength) {
   const MIN = 59;
-  const MAX = 88;
+  const MAX = 89;
   let min, max;
-  if (index < 3) { min = 83; max = MAX; }
+  if (index < 3) { min = 84; max = MAX; }
+  else if (index < 8) { min = 80; max = 87; }
   else if (index < 16) { min = 78; max = 85; }
   else if (index < 32) { min = 73; max = 79; }
   else if (index < 48) { min = 68; max = 75; }
@@ -501,7 +502,8 @@ export function generateProspectRating(index, rng, classStrength) {
   else if (index < 120) { min = 59; max = 66; }
   else { min = MIN; max = 63; }
   const shift = Math.round(classStrength * 2);
-  return Math.max(MIN, Math.min(MAX, rng.int(min, max) + shift));
+  const premiumFloor = index < 3 ? 83 : index < 8 ? 79 : index < 16 ? 76 : MIN;
+  return Math.max(premiumFloor, Math.min(MAX, rng.int(min, max) + shift));
 }
 
 function createDraftState(teams, draftClass) {

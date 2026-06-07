@@ -16,6 +16,7 @@ export function ScreenDraft({ onNav }) {
   const [draftLog, setDraftLog] = useState([]);
   const [currentPickIdx, setCurrentPickIdx] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [draftTick, setDraftTick] = useState(0);
   const timerRef = useRef(null);
 
   const picks = draft?.picks || [];
@@ -37,6 +38,7 @@ export function ScreenDraft({ onNav }) {
     if (league.draft) league.draft.status = 'in_progress';
     setCurrentPickIdx(Math.max(0, nextPickIdx));
     setDraftLog([]);
+    setDraftTick(0);
     setIsRunning(true);
   }, [league, nextPickIdx]);
 
@@ -75,16 +77,19 @@ export function ScreenDraft({ onNav }) {
           position: result.prospect.position,
           rating: result.player.overall,
         }]);
+        setDraftTick(tick => tick + 1);
+      } else {
+        setIsRunning(false);
       }
     }, 400);
 
     return () => clearTimeout(timerRef.current);
-  }, [isRunning, mode, picks, teamId, actions, currentPickIdx]);
+  }, [isRunning, mode, picks, teamId, actions, draftTick]);
 
   function userDraftPlayer(prospectId) {
     try {
-      const pick = picks.find(p => !p.prospectId && p.currentTeamId === teamId);
-      if (!pick) return;
+      const pick = currentPick;
+      if (!pick || pick.prospectId || pick.currentTeamId !== teamId) return;
 
       const result = actions.draftPick(pick.id, prospectId);
       if (!result) { setIsRunning(true); return; }
@@ -109,8 +114,8 @@ export function ScreenDraft({ onNav }) {
 
   function autoPick() {
     try {
-      const pick = picks.find(p => !p.prospectId && p.currentTeamId === teamId);
-      if (!pick) return;
+      const pick = currentPick;
+      if (!pick || pick.prospectId || pick.currentTeamId !== teamId) return;
       const result = actions.runCpuPick(pick.id);
       if (result) {
         setDraftLog(prev => [...prev, {

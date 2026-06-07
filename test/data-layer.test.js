@@ -12,6 +12,7 @@ import {
   advanceSeasonPhase,
   castHallOfFameVotes,
   changePlayerPosition,
+  completeTrade,
   createLeague,
   draftProspect,
   generatePlayoffBracket,
@@ -64,6 +65,31 @@ test("createLeague includes Stage 1 system state homes", () => {
   assert.equal(league.playoff.format.teams, LEAGUE_RULES.playoffTeams);
   assert.deepEqual(league.awards.allPro, { firstTeam: [], secondTeam: [] });
   assert.deepEqual(league.hallOfFame.inductedPlayerIds, []);
+});
+
+test("completed pick trades transfer draft ownership for selection resolution", () => {
+  const league = createLeague("pick-trade-transfer");
+  const [fromTeam, toTeam] = league.teams;
+  const offeredPick = league.draft.picks.find((pick) => pick.currentTeamId === fromTeam.id && pick.round === 1);
+  const requestedPick = league.draft.picks.find((pick) => pick.currentTeamId === toTeam.id && pick.round === 2);
+
+  const trade = proposeTrade(league, fromTeam.id, toTeam.id, {
+    offeredPickIds: [offeredPick.id],
+    requestedPickIds: [requestedPick.id]
+  });
+
+  completeTrade(league, trade.id);
+
+  assert.equal(offeredPick.currentTeamId, toTeam.id);
+  assert.equal(requestedPick.currentTeamId, fromTeam.id);
+  assert.equal(fromTeam.draftPicks.includes(offeredPick.id), false);
+  assert.equal(toTeam.draftPicks.includes(offeredPick.id), true);
+  assert.equal(toTeam.draftPicks.includes(requestedPick.id), false);
+  assert.equal(fromTeam.draftPicks.includes(requestedPick.id), true);
+
+  const prospect = league.draftClass[0];
+  draftProspect(league, offeredPick.id, prospect.id);
+  assert.equal(prospect.draftedByTeamId, toTeam.id);
 });
 
 test("playbook concepts store named football concepts for both sides of the ball", () => {
