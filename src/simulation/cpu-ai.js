@@ -50,8 +50,7 @@ export function executeCpuOffseasonSignings(league, options = {}) {
     needs.sort((a, b) => a.priority - b.priority);
 
     for (const need of needs) {
-      const activeCount = team.roster.filter((p) => p.health.status === "healthy").length;
-      if (activeCount >= LEAGUE_RULES.rosterLimit) {
+      if (team.roster.length >= LEAGUE_RULES.rosterLimit) {
         const released = releaseLowestSurplus(team, league, need.position);
         if (released) summary.released.push(released);
         else continue;
@@ -152,7 +151,7 @@ export function convertProspectToPlayer(league, prospect, teamId, rng) {
   const potentialCeilings = { 1: 64, 2: 72, 3: 79, 4: 89, 5: 99 };
 
   // Determine potential stars — use scouted value if available, otherwise derive from projected rating
-  const projectedMid = Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2);
+  const projectedMid = prospect.exactRating ?? Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2);
   let potentialStars = prospect.potentialStars;
   if (!potentialStars) {
     // Assign stars based on projected talent: higher prospects get higher ceilings
@@ -168,8 +167,7 @@ export function convertProspectToPlayer(league, prospect, teamId, rng) {
   // Rookie OVR: top-16 picks floor at 60, others floor at 55
   const pickNumber = prospect.expectedDraftPosition ?? 999;
   const floorOvr = pickNumber <= 16 ? 60 : 55;
-  const maxStartOvr = Math.min(ceiling, projectedMid + rng.int(-2, 5));
-  const overall = Math.max(floorOvr, Math.min(ceiling, rng.int(floorOvr, maxStartOvr)));
+  const overall = Math.max(floorOvr, Math.min(ceiling, projectedMid));
 
   const nearCeiling = overall >= ceiling - 2;
 
@@ -213,8 +211,10 @@ export function executeCpuAutoDraft(league, options = {}) {
     const result = draftProspect(league, pick.id, prospect.id);
     const player = convertProspectToPlayer(league, result.prospect, team.id, rng);
 
-    const activeCount = team.roster.filter((p) => p.health.status === "healthy").length;
-    if (activeCount < LEAGUE_RULES.rosterLimit) {
+    if (
+      team.roster.length < LEAGUE_RULES.rosterLimit
+      && team.contractSummary.committedCap + player.contract.capHit <= team.salaryCap
+    ) {
       team.roster.push(player);
       refreshContractSummary(team);
     } else {
@@ -229,7 +229,7 @@ export function executeCpuAutoDraft(league, options = {}) {
     const prospect = league.draftClass.find((p) => p.id === prospectId);
     if (!prospect) continue;
     const udRng = createRng(`udfa-${prospect.id}`);
-    const overall = Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2);
+    const overall = prospect.exactRating ?? Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2);
     // Skip low-OVR undrafted prospects — they retire instead of bloating FA pool
     if (overall < 62) continue;
     const player = {
@@ -288,15 +288,41 @@ export function repairRosterCompliance(league) {
       const minRequired = Math.min(targetCount, 1);
       if (current < minRequired) {
         const needed = minRequired - current;
-        const available = league.freeAgents.filter((p) => p.position === position).sort((a, b) => b.overall - a.overall);
-        for (let i = 0; i < needed && available.length > 0; i++) {
-          const player = available.shift();
+        for (let i = 0; i < needed; i++) {
+          if (team.roster.length >= LEAGUE_RULES.rosterLimit) {
+            const released = releaseLowestSurplus(team, league, position);
+            if (!released) break;
+            refreshContractSummary(team);
+          }
+          let player = league.freeAgents
+            .filter((candidate) => candidate.position === position)
+            .sort((a, b) => b.overall - a.overall)[0];
+          if (!player) player = generateStreetFreeAgent(league, position, createRng(`compliance-${team.id}-${position}-${league.currentSeason}`));
+          const minimumContract = createContractFromSalary(800_000, 1);
+          while (team.contractSummary.committedCap + minimumContract.capHit > team.salaryCap) {
+            const capCut = team.roster
+              .filter((candidate) => team.roster.filter((teammate) => teammate.position === candidate.position).length > 1)
+              .sort((a, b) =>
+                (b.contract.capHit / Math.max(1, b.overall)) - (a.contract.capHit / Math.max(1, a.overall))
+              )[0];
+            if (!capCut) break;
+            team.roster = team.roster.filter((candidate) => candidate.id !== capCut.id);
+            capCut.freeAgentSeasonsUnsigned = 0;
+            league.freeAgents.push(capCut);
+            refreshContractSummary(team);
+          }
+          if (team.contractSummary.committedCap + minimumContract.capHit > team.salaryCap) break;
+          player.contract = minimumContract;
+          player.freeAgentSeasonsUnsigned = 0;
           team.roster.push(player);
           league.freeAgents = league.freeAgents.filter((p) => p.id !== player.id);
+          refreshContractSummary(team);
           repaired.push({ teamId: team.id, teamName: team.name, position, playerId: player.id, overall: player.overall });
         }
       }
     }
+    refreshDepthChart(team);
+    refreshContractSummary(team);
   }
   return repaired;
 }
@@ -329,8 +355,7 @@ function executeCpuSignings(team, league, rng) {
   const needs = identifyRosterNeeds(team);
 
   for (const position of needs.slice(0, 3)) {
-    const activeCount = team.roster.filter((p) => p.health.status === "healthy").length;
-    if (activeCount >= LEAGUE_RULES.rosterLimit) break;
+    if (team.roster.length >= LEAGUE_RULES.rosterLimit) break;
     if (team.contractSummary.capSpace < 1_000_000) break;
 
     const candidate = findBestFreeAgent(league, position, team);
@@ -457,7 +482,9 @@ function emptyStats() {
     passingYards: 0, passingTouchdowns: 0, interceptionsThrown: 0,
     rushingYards: 0, rushingTouchdowns: 0, receivingYards: 0, receivingTouchdowns: 0,
     tackles: 0, tacklesForLoss: 0, sacks: 0, interceptions: 0,
-    passDeflections: 0, puntDeflections: 0, kickDeflections: 0
+    passDeflections: 0, puntDeflections: 0, kickDeflections: 0,
+    fieldGoalsAttempted: 0, fieldGoalsMade: 0, fieldGoalYards: 0,
+    punts: 0, puntYards: 0
   };
 }
 

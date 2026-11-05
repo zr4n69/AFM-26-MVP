@@ -33,7 +33,6 @@ export function ScreenDepthChart({ onNav }) {
     actions.setDepthChart(team.id, enginePos, newIds);
   }
 
-  const schemeStarters = team.schemeStarters || {};
   const offStarters = team.offStarters || {};
   const defStarters = team.defStarters || {};
 

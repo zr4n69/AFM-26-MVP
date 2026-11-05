@@ -3,7 +3,7 @@ import { useLeague } from '../context/LeagueContext.jsx';
 import { Topbar, Avatar, OvrPill, Stars } from '../components/Chrome.jsx';
 import { isTrainingWindowOpen } from '../data/bridge.js';
 
-export function ScreenTraining({ onNav }) {
+export function ScreenTraining() {
   const { userTeam, actions, _engine } = useLeague();
   const league = _engine;
   const windowInfo = isTrainingWindowOpen(league);
@@ -55,7 +55,7 @@ export function ScreenTraining({ onNav }) {
   const campSessions = league.training?.camp?.sessions || [];
   const regWindows = league.training?.regularSeason?.windows || [];
 
-  const riskLabel = (int) => int === 'light' ? '2%' : int === 'standard' ? '5%' : '8%';
+  const riskLabel = (int) => int === 'light' ? '1%' : int === 'standard' ? '4%' : '10%';
   const gainLabel = (int) => int === 'light' ? '+0-1' : int === 'standard' ? '+1-2' : '+1-3';
 
   return (
@@ -102,7 +102,7 @@ export function ScreenTraining({ onNav }) {
                 <span>Training Camp</span>
                 <span className="muted">{campSessions.length > 0 ? `${campSessions.filter(s => s.completed).length} session(s) used` : 'Preseason'}</span>
               </div>
-              {regWindows.map((w, i) => {
+              {regWindows.map((w) => {
                 const used = w.sessions.some(s => s.completed);
                 const isCurrent = windowInfo.open && windowInfo.afterWeek === w.afterWeek;
                 return (
@@ -117,10 +117,10 @@ export function ScreenTraining({ onNav }) {
           <div className="card">
             <div className="card-h"><h2>Intensity Effects</h2></div>
             <div className="card-b" style={{ fontSize: 13 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Light</span><span className="muted">Inj 1-3% · Gain low</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Standard</span><span className="muted">Inj 3-6% · Gain mid</span></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Aggressive</span><span className="muted">Inj 6-10% · Gain high</span></div>
-              <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>Modified by age, fatigue, durability, and history.</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Light</span><span className="muted">Inj 1% · Gain 0-1</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Standard</span><span className="muted">Inj 4% · Gain 1-2</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Aggressive</span><span className="muted">Inj 10% · Gain 1-3</span></div>
+              <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>Gains cannot exceed the player's potential ceiling.</div>
             </div>
           </div>
         </div>
@@ -232,13 +232,9 @@ export function ScreenTraining({ onNav }) {
             </div>
 
             <div className="card" style={{ marginTop: 14 }}>
-              <div className="card-h"><h2>Non-focused Camp Gains</h2><span className="right">All other roster players</span></div>
+              <div className="card-h"><h2>Training Notes</h2><span className="right">Focused players only</span></div>
               <div className="card-b" style={{ fontSize: 13 }}>
-                <div style={{ display: 'flex', gap: 32 }}>
-                  <div><strong>4-5★ potential</strong>: up to <span className="mono">+3</span> in training camp</div>
-                  <div><strong>1-3★ potential</strong>: up to <span className="mono">+2</span> in training camp</div>
-                  <div className="muted">Smaller gains in regular-season windows. Age-based decline still applies (31+ = -1/yr, 35+ = -2.5/yr)</div>
-                </div>
+                Only the selected players receive gains from a session. Training camp contains three sessions; each in-season window contains one.
               </div>
             </div>
           </>

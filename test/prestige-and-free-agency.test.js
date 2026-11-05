@@ -15,7 +15,7 @@ import {
 } from "../src/index.js";
 import { createRng } from "../src/data/random.js";
 
-test("prestige drives initial roster strength — high prestige teams have higher OVR", () => {
+test("prestige gives a modest initial roster edge without preventing parity", () => {
   function teamOvr(team) {
     const starters = Object.values(team.depthChart).map((ids) => ids[0]).filter(Boolean)
       .map((id) => team.roster.find((p) => p.id === id)).filter(Boolean);
@@ -38,7 +38,9 @@ test("prestige drives initial roster strength — high prestige teams have highe
 
   const highAvg = highPrestigeOvrSum / highCount;
   const lowAvg = lowPrestigeOvrSum / lowCount;
-  assert.ok(highAvg > lowAvg + 2, `high prestige avg OVR (${highAvg.toFixed(1)}) should be notably above low (${lowAvg.toFixed(1)})`);
+  const gap = highAvg - lowAvg;
+  assert.ok(gap > 0.75, `high prestige avg OVR (${highAvg.toFixed(1)}) should remain above low (${lowAvg.toFixed(1)})`);
+  assert.ok(gap < 2, `initial prestige gap (${gap.toFixed(1)}) should remain rebuildable within 3–4 seasons`);
 });
 
 test("player can choose team, prestige, and roster strength at league creation", () => {
@@ -56,6 +58,26 @@ test("player can choose team, prestige, and roster strength at league creation",
   const otherTeams = league.teams.filter((t) => !t.isPlayerControlled);
   assert.equal(otherTeams.length, 15);
   assert.ok(otherTeams.every((t) => t.isPlayerControlled === false));
+});
+
+test("every franchise operates under the same hard salary cap", () => {
+  const league = createLeague("equal-hard-cap");
+  assert.deepEqual(new Set(league.teams.map((team) => team.salaryCap)), new Set([180_000_000]));
+});
+
+test("elite prestige provides a small star-recruiting discount without extra cap", () => {
+  const league = createLeague("prestige-discount");
+  const team = league.teams[0];
+  const star = league.freeAgents.sort((a, b) => b.overall - a.overall)[0];
+  const offer = { teamId: team.id, playerId: star.id, salary: 10_000_000, years: 3 };
+  team.prestige = 1;
+  const lowPrestigeScore = computeAttractiveness(offer, star, league, 1, createRng("same-noise"));
+  team.prestige = 5;
+  const highPrestigeScore = computeAttractiveness(offer, star, league, 1, createRng("same-noise"));
+
+  assert.equal(team.salaryCap, 180_000_000);
+  assert.ok(highPrestigeScore > lowPrestigeScore);
+  assert.ok(highPrestigeScore - lowPrestigeScore < 0.15, "prestige advantage should stay soft");
 });
 
 test("prestigeInfluence scales from low in season 1 to full by season 6", () => {

@@ -10,12 +10,11 @@ const ST_POS = ['K', 'P', 'LS'];
 export function ScreenRoster({ onNav }) {
   const { userTeam, actions } = useLeague();
   const team = userTeam;
-  if (!team) return null;
-
   const [filter, setFilter] = useState('All');
   const [sortKey, setSortKey] = useState('ovr');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [cutTarget, setCutTarget] = useState(null);
+  if (!team) return null;
 
   function handleRelease(playerId) {
     actions.releasePlayer(team.id, playerId);

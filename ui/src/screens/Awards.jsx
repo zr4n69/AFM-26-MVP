@@ -154,8 +154,8 @@ function AllProTable({ entries, label, findPlayer, findTeam }) {
   );
 }
 
-export function ScreenAwards({ onNav }) {
-  const { userTeam, teams, awards, phase } = useLeague();
+export function ScreenAwards() {
+  const { teams, awards } = useLeague();
 
   const hasAwards = awards?.regularSeasonProcessed && Object.keys(awards.winners || {}).length > 0;
 

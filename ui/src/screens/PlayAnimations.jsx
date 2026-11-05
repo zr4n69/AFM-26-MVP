@@ -238,9 +238,11 @@ export function PlayAnimationOverlay({ currentDrive, team, opp, paused }) {
     }
 
     const duration = DURATIONS[evt.type] || 1400;
-    setAnim({ ...evt, activeTeam, duration });
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setAnim(null), duration + 120);
+    timerRef.current = setTimeout(() => {
+      setAnim({ ...evt, activeTeam, duration });
+      timerRef.current = setTimeout(() => setAnim(null), duration + 120);
+    }, 0);
     return () => clearTimeout(timerRef.current);
   }, [currentDrive, paused, team, opp]);
 

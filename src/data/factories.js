@@ -11,6 +11,7 @@ import {
   SCHEME_ROSTER_ADJUSTMENTS
 } from "./constants.js";
 import { createRng, makeId } from "./random.js";
+import { createRegularSeasonSchedule } from "./schedule.js";
 
 const CITY_NAMES = Object.freeze([
   "Florida", "Austin", "Columbus", "Sacramento", "Orlando", "Memphis", "Omaha", "Raleigh",
@@ -63,7 +64,7 @@ export function createLeague(seed = "mvp", options = {}) {
       : {};
     return createTeam(index, rng, overrides);
   });
-  const schedule = createSchedule(teams);
+  const schedule = createRegularSeasonSchedule(teams, 1);
   const standings = createStandings(teams);
   const draftClass = createDraftClass(rng, 1);
 
@@ -88,6 +89,7 @@ export function createLeague(seed = "mvp", options = {}) {
     awards: createAwardsState(),
     hallOfFame: createHallOfFameState(),
     seasonHistory: [],
+    careerArchive: { seasons: [] },
     freeAgents: createInitialFreeAgentPool(rng),
     prospectFreeAgents: [],
     offseasonEvents: createOffseasonEventsState(),
@@ -120,8 +122,8 @@ export function effectiveRosterTemplate(strategy) {
 }
 
 export function salaryCapFromPrestige(prestige) {
-  const unclamped = LEAGUE_RULES.minSalaryCap + (prestige - 1) * LEAGUE_RULES.capPerPrestigeStarAboveOne;
-  return Math.min(LEAGUE_RULES.maxSalaryCap, Math.max(LEAGUE_RULES.minSalaryCap, Math.round(unclamped)));
+  void prestige;
+  return LEAGUE_RULES.salaryCap;
 }
 
 function createTeam(index, rng, overrides = {}) {
@@ -336,7 +338,12 @@ function createEmptyStats() {
     interceptions: 0,
     passDeflections: 0,
     puntDeflections: 0,
-    kickDeflections: 0
+    kickDeflections: 0,
+    fieldGoalsAttempted: 0,
+    fieldGoalsMade: 0,
+    fieldGoalYards: 0,
+    punts: 0,
+    puntYards: 0
   };
 }
 
@@ -360,29 +367,6 @@ function createStandings(teams) {
   return teams.map((team) => ({ teamId: team.id, division: team.division, wins: 0, losses: 0, ties: 0, winPct: 0 }));
 }
 
-function createSchedule(teams) {
-  return Array.from({ length: LEAGUE_RULES.regularSeasonWeeks }, (_, weekIndex) => ({
-    week: weekIndex + 1,
-    games: pairTeams(teams, weekIndex)
-  }));
-}
-
-function pairTeams(teams, weekIndex) {
-  const ids = teams.map((team) => team.id);
-  const rotated = [ids[0], ...ids.slice(1 + weekIndex), ...ids.slice(1, 1 + weekIndex)];
-  return Array.from({ length: ids.length / 2 }, (_, index) => ({
-    id: makeId("game", [weekIndex + 1, index + 1]),
-    week: weekIndex + 1,
-    awayTeamId: rotated[index],
-    homeTeamId: rotated[rotated.length - 1 - index],
-    played: false,
-    driveLog: [],
-    boxScore: null,
-    injuries: [],
-    keyEvents: []
-  }));
-}
-
 function createDraftClass(rng, season) {
   const classStrength = (rng.next() - 0.5) * 2;
   const positions = Object.keys(POSITION_GROUPS);
@@ -390,13 +374,7 @@ function createDraftClass(rng, season) {
   return Array.from({ length: LEAGUE_RULES.draftClassSize }, (_, index) => {
     const position = positionSlots[index];
     const projectedOverall = generateProspectRating(index, rng, classStrength);
-    // Assign intrinsic potential based on projected talent (hidden until deep scouted)
-    let potentialStars;
-    if (projectedOverall >= 85) potentialStars = rng.int(4, 5);
-    else if (projectedOverall >= 78) potentialStars = rng.int(3, 5);
-    else if (projectedOverall >= 70) potentialStars = rng.int(2, 4);
-    else if (projectedOverall >= 63) potentialStars = rng.int(1, 3);
-    else potentialStars = rng.int(1, 2);
+    const scoutingProfile = createProspectScoutingProfile(rng, projectedOverall, position);
     return {
       id: makeId("prospect", [season, index + 1]),
       firstName: rng.pick(FIRST_NAMES),
@@ -405,11 +383,7 @@ function createDraftClass(rng, season) {
       age: rng.int(20, 23),
       ratingRange: [Math.max(55, projectedOverall - rng.int(4, 10)), Math.min(92, projectedOverall + rng.int(3, 8))],
       scouted: false,
-      exactRating: null,
-      detailedRatings: null,
-      traits: null,
-      potentialStars,
-      schemeFit: null,
+      ...scoutingProfile,
       expectedDraftPosition: index + 1,
       rookieContract: createRookieContractScale(index + 1),
       collegeHistory: `${rng.pick(["State", "Tech", "Northern", "Coastal", "Central"])} ${rng.pick(["A&M", "University", "College"])}`,
@@ -429,6 +403,37 @@ function createDraftClass(rng, season) {
       signedAsUndrafted: false
     };
   });
+}
+
+export function createProspectScoutingProfile(rng, exactRating, position) {
+  let potentialStars;
+  if (exactRating >= 85) potentialStars = rng.int(4, 5);
+  else if (exactRating >= 78) potentialStars = rng.int(3, 5);
+  else if (exactRating >= 70) potentialStars = rng.int(2, 4);
+  else if (exactRating >= 63) potentialStars = rng.int(1, 3);
+  else potentialStars = rng.int(1, 2);
+
+  const offensivePosition = ["QB", "RB", "WR", "TE", "OT", "OG", "C"].includes(position);
+  const defensivePosition = ["DL", "EDGE", "LB", "CB", "S"].includes(position);
+  return {
+    exactRating,
+    detailedRatings: {
+      awareness: clampRating(exactRating + rng.int(-7, 7)),
+      athleticism: clampRating(exactRating + rng.int(-7, 7)),
+      technique: clampRating(exactRating + rng.int(-7, 7))
+    },
+    traits: createTraits(rng),
+    potentialStars,
+    schemeFit: offensivePosition
+      ? rng.pick(Object.values(OFFENSIVE_SYSTEMS))
+      : defensivePosition
+        ? rng.pick(Object.values(DEFENSIVE_SYSTEMS))
+        : "specialTeams"
+  };
+}
+
+function clampRating(rating) {
+  return Math.max(40, Math.min(99, rating));
 }
 
 export const DRAFT_BASE_WEIGHTS = Object.freeze({
@@ -675,8 +680,10 @@ function eligiblePositionsFor(position) {
 }
 
 export function createRookieContractScale(overallPick) {
-  const topSalary = 25_000_000;
-  const bottomSalary = 1_500_000;
+  // Annual salaries, not total contract values. Keeping the first pick near
+  // $8.5M prevents a five-player draft class from consuming a third of the cap.
+  const topSalary = 8_500_000;
+  const bottomSalary = 900_000;
   const totalPicks = LEAGUE_RULES.draftRounds * LEAGUE_RULES.picksPerRound;
   const progress = Math.max(0, Math.min(1, (overallPick - 1) / Math.max(1, totalPicks - 1)));
   const salary = Math.round(topSalary - (topSalary - bottomSalary) * progress);
@@ -729,9 +736,12 @@ function salaryForOverall(overall, position, rng) {
 }
 
 function prestigeToRosterStrength(prestige, rng) {
-  const base = (prestige - 1) / 4;
-  const noise = (rng.next() - 0.5) * 0.25;
-  return Math.max(-1, Math.min(1, (base * 2 - 1) + noise));
+  // Prestige describes the franchise, not a permanent talent multiplier. Keep
+  // enough separation for elite and rebuilding starting situations while
+  // leaving the draft and equal cap room to close that gap within a few years.
+  const prestigeStrength = (prestige - 3) / 5;
+  const rosterVariance = (rng.next() - 0.5) * 0.20;
+  return Math.max(-0.65, Math.min(0.65, prestigeStrength + rosterVariance));
 }
 
 function generateOverall(position, rng, rosterStrength = 0) {

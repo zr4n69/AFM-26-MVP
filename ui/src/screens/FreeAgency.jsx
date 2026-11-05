@@ -40,7 +40,7 @@ function statLine(p) {
   return null;
 }
 
-export function ScreenFreeAgency({ onNav }) {
+export function ScreenFreeAgency() {
   const { userTeam, freeAgents, phase, pendingOffers, offseasonEvents, actions } = useLeague();
   const teamId = userTeam.id;
 

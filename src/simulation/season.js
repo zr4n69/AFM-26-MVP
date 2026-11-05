@@ -19,17 +19,19 @@ import {
   buildPositionSlots,
   generateProspectRating,
   createRookieContractScale,
+  createProspectScoutingProfile,
   DRAFT_BASE_WEIGHTS,
   DRAFT_MINIMUMS,
   DRAFT_CLASS_THEMES
 } from "../data/factories.js";
 import { createRng, makeId } from "../data/random.js";
+import { createRegularSeasonSchedule } from "../data/schedule.js";
 import {
   generatePlayoffSeeds,
   simulatePlayoffRound,
   simulateRegularSeason
 } from "./engine.js";
-import { runFreeAgencyPeriod } from "./free-agency.js";
+import { rookieCapReserve, runFreeAgencyPeriod } from "./free-agency.js";
 import { executeCpuAutoDraft, executeCpuOffseasonSignings, validateRosterCompliance, repairRosterCompliance } from "./cpu-ai.js";
 import { calculateTradeValue } from "./trade-value.js";
 
@@ -53,6 +55,7 @@ export function runSeasonReview(league) {
   // Process contract bonus expectations and season-level prestige movement.
   processContractBonuses(league);
   updateFranchisePrestige(league);
+  finalizeDraftOrder(league);
 
   league.seasonHistory.push({
     season: league.currentSeason,
@@ -61,8 +64,31 @@ export function runSeasonReview(league) {
     awards: structuredClone(awards),
     allPro: structuredClone(league.awards.allPro)
   });
+  compactCareerHistory(league);
   recordAutosave(league, "season", { action: "review", season: league.currentSeason });
   return awards;
+}
+
+export function finalizeDraftOrder(league) {
+  if (!league.draft?.picks?.length) return [];
+  const draftOrder = buildDraftOrder(league.teams, league.standings);
+  const slotByTeamId = new Map(draftOrder.map((teamId, index) => [teamId, index + 1]));
+
+  for (const pick of league.draft.picks) {
+    const slot = slotByTeamId.get(pick.originalTeamId);
+    if (!slot) throw new Error(`Draft pick ${pick.id} has an unknown original team.`);
+    pick.slot = slot;
+    pick.overallPick = (pick.round - 1) * LEAGUE_RULES.picksPerRound + slot;
+    pick.rookieContract = createRookieContractScale(pick.overallPick);
+  }
+  league.draft.picks.sort((left, right) => left.overallPick - right.overallPick);
+  league.draft.draftOrder = draftOrder;
+  league.draft.rookieContractScale = league.draft.picks.map((pick) => ({
+    overallPick: pick.overallPick,
+    salary: pick.rookieContract.salary,
+    yearsRemaining: pick.rookieContract.yearsRemaining
+  }));
+  return draftOrder;
 }
 
 function computeAllProTeams(league) {
@@ -123,7 +149,11 @@ function runCpuToCpuTrades(league, rng) {
 
     const offered = bCandidates[0];
     const aTradeables = teamA.roster
-      .filter(p => p.overall >= 60 && p.overall <= offered.overall + 5)
+      .filter(p =>
+        p.overall >= 60
+        && p.overall <= offered.overall + 5
+        && teamA.roster.filter((candidate) => candidate.position === p.position).length > 1
+      )
       .sort((a, b) => a.overall - b.overall);
     if (aTradeables.length === 0) continue;
 
@@ -131,12 +161,17 @@ function runCpuToCpuTrades(league, rng) {
     const inVal = calculateTradeValue(league, teamA.id, { playerIds: [giving.id], pickIds: [] });
     const outVal = calculateTradeValue(league, teamB.id, { playerIds: [offered.id], pickIds: [] });
     if (outVal <= 0 || inVal / outVal < 0.7) continue;
+    const projectedACap = teamA.contractSummary.committedCap - giving.contract.capHit + offered.contract.capHit;
+    const projectedBCap = teamB.contractSummary.committedCap - offered.contract.capHit + giving.contract.capHit;
+    if (projectedACap > teamA.salaryCap || projectedBCap > teamB.salaryCap) continue;
 
     // Execute the swap
     teamA.roster = teamA.roster.filter(p => p.id !== giving.id);
     teamB.roster = teamB.roster.filter(p => p.id !== offered.id);
     teamA.roster.push(offered);
     teamB.roster.push(giving);
+    refreshContractSummary(teamA);
+    refreshContractSummary(teamB);
 
     const record = {
       fromTeamId: teamA.id, toTeamId: teamB.id,
@@ -169,6 +204,7 @@ function updateFranchisePrestige(league) {
     .sort((a, b) => b.rating - a.rating)[0]?.team.id ?? null;
 
   league.prestigeHistory ??= [];
+  const leagueAveragePrestige = league.teams.reduce((sum, team) => sum + team.prestige, 0) / league.teams.length;
   for (const team of league.teams) {
     const before = team.prestige;
     let delta = 0;
@@ -181,7 +217,9 @@ function updateFranchisePrestige(league) {
     if (team.id === bestDefenseId) { delta += 0.125; reasons.push('bestDefense'); }
     if (bottomFourIds.has(team.id)) { delta -= 0.25; reasons.push('bottomFour'); }
 
-    const next = Math.max(1, Math.min(5, Math.round((before + delta) * 1000) / 1000));
+    const performancePrestige = before + delta;
+    const regressedPrestige = performancePrestige + (leagueAveragePrestige - performancePrestige) * 0.08;
+    const next = Math.max(1, Math.min(5, Math.round(regressedPrestige * 1000) / 1000));
     team.prestige = next;
     team.salaryCap = salaryCapFromPrestige(next);
     refreshContractSummary(team);
@@ -189,8 +227,31 @@ function updateFranchisePrestige(league) {
   }
 }
 
+export function compactCareerHistory(league) {
+  league.careerArchive ??= { seasons: [] };
+  while (league.seasonHistory.length > LEAGUE_RULES.detailedHistorySeasons) {
+    const detailed = league.seasonHistory.shift();
+    const userTeam = league.teams.find((team) => team.isPlayerControlled);
+    const userStanding = detailed.standings.find((standing) => standing.teamId === userTeam?.id) ?? null;
+    const userAwards = Object.fromEntries(
+      Object.entries(detailed.awards || {}).filter(([, award]) => award.teamId === userTeam?.id)
+    );
+    league.careerArchive.seasons.push({
+      season: detailed.season,
+      championTeamId: detailed.championTeamId,
+      awards: detailed.awards,
+      userFranchise: userTeam ? {
+        teamId: userTeam.id,
+        standings: userStanding,
+        champion: detailed.championTeamId === userTeam.id,
+        awards: userAwards
+      } : null
+    });
+  }
+}
+
 function processContractBonuses(league) {
-  const playoffTeamIds = new Set(league.playoff.seeds || []);
+  const playoffTeamIds = new Set((league.playoff.seeds || []).map((seed) => seed.teamId ?? seed));
   const championId = league.playoff.championTeamId;
   const awardWinnerIds = new Set(
     Object.values(league.awards.winners || {}).map(w => w.playerId)
@@ -218,8 +279,8 @@ function processContractBonuses(league) {
       }
 
       if (triggered && player.contract.bonusAmount > 0) {
-        // Bonus paid — increase cap hit for this year
-        player.contract.capHit += player.contract.bonusAmount;
+        // Incentives are reserved in capHit when the contract is created. Mark the
+        // payout without charging the same amount a second time.
         player.contract.bonusPaid = true;
       }
     }
@@ -239,6 +300,12 @@ export function runOffseason(league, options = {}) {
     developmentChanges: [],
     freeAgency: null
   };
+
+  const seasonPlayers = [
+    ...league.teams.flatMap((team) => team.roster),
+    ...league.freeAgents
+  ];
+  for (const player of seasonPlayers) archiveSeasonStats(player);
 
   for (const team of league.teams) {
     const retirements = processRetirements(team, league, rng);
@@ -316,13 +383,38 @@ export function runOffseason(league, options = {}) {
   }
 
   if (!options.skipDraft && league.draft.status !== "completed") {
+    summary.rookieCapEnforcement = [];
+    for (const team of league.teams) {
+      const result = reserveCapForDraftClass(league, team);
+      if (result.released.length > 0 || !result.compliant) summary.rookieCapEnforcement.push(result);
+    }
     summary.draft = executeCpuAutoDraft(league, {
       seed: `autodraft-${league.seed}-${league.currentSeason}`
     });
+    summary.rosterRepairs = repairRosterCompliance(league);
+    summary.remainingRosterViolations = validateRosterCompliance(league);
   }
 
   recordAutosave(league, "season", { action: "offseason", season: league.currentSeason });
   return summary;
+}
+
+function reserveCapForDraftClass(league, team) {
+  const reserve = rookieCapReserve(league, team.id);
+  if (reserve <= 0 || team.contractSummary.capSpace >= reserve) {
+    return { teamId: team.id, reserve, released: [], compliant: true };
+  }
+  const actualSalaryCap = team.salaryCap;
+  team.salaryCap = Math.max(0, actualSalaryCap - reserve);
+  refreshContractSummary(team);
+  const result = enforceCapCompliance(league, team.id);
+  team.salaryCap = actualSalaryCap;
+  refreshContractSummary(team);
+  return {
+    ...result,
+    reserve,
+    compliant: team.contractSummary.capSpace >= reserve
+  };
 }
 
 export function advanceToNextSeason(league) {
@@ -332,7 +424,7 @@ export function advanceToNextSeason(league) {
   const rng = createRng(`${league.seed}-season-${league.currentSeason}`);
 
   const teams = league.teams;
-  league.schedule = createNextSchedule(teams, league.currentSeason);
+  league.schedule = createRegularSeasonSchedule(teams, league.currentSeason);
   league.standings = teams.map((team) => ({
     teamId: team.id,
     division: team.division,
@@ -348,6 +440,14 @@ export function advanceToNextSeason(league) {
     : league.standings;
   league.draftClass = createNextDraftClass(rng, league.currentSeason);
   league.draft = createNextDraftState(teams, league.draftClass, league.currentSeason, previousStandings);
+  league.prospectFreeAgents = [];
+  league.scouting.investments = [];
+  for (const team of teams) {
+    league.scouting.revealedGroupsByTeamId[team.id] = {};
+    if (league.scouting.cpuCoverage?.[team.id]) {
+      league.scouting.cpuCoverage[team.id].scoutedProspectIds = [];
+    }
+  }
   league.playoff = {
     format: {
       teams: LEAGUE_RULES.playoffTeams,
@@ -375,6 +475,13 @@ export function advanceToNextSeason(league) {
       }))
     }
   };
+  const inductedIds = new Set(league.hallOfFame.inductedPlayerIds || []);
+  league.hallOfFame.eligiblePlayers = (league.hallOfFame.eligiblePlayers || [])
+    .filter((player) => !inductedIds.has(player.id));
+  league.hallOfFame.eligibleRetiringPlayerIds = (league.hallOfFame.eligibleRetiringPlayerIds || [])
+    .filter((playerId) => !inductedIds.has(playerId));
+  league.hallOfFame.ballotsByTeamId = {};
+  league.hallOfFame.voteTotals = {};
 
   ageAllPlayers(league, rng);
 
@@ -603,12 +710,6 @@ function ageAllPlayers(league, rng) {
 
 function resetSeasonState(team) {
   for (const player of team.roster) {
-    // Accumulate season stats into career totals before reset
-    player.careerStats ??= {};
-    for (const key of Object.keys(player.stats)) {
-      player.careerStats[key] = (player.careerStats[key] || 0) + player.stats[key];
-      player.stats[key] = 0;
-    }
     player.fatigue = 0;
     player.rookie = false;
     if (player.health.status !== "healthy" && player.health.weeksRemaining <= 3) {
@@ -616,6 +717,14 @@ function resetSeasonState(team) {
     }
   }
   team.standings = { wins: 0, losses: 0, ties: 0, pointsFor: 0, pointsAgainst: 0 };
+}
+
+function archiveSeasonStats(player) {
+  player.careerStats ??= {};
+  for (const key of Object.keys(player.stats)) {
+    player.careerStats[key] = (player.careerStats[key] || 0) + player.stats[key];
+    player.stats[key] = 0;
+  }
 }
 
 function computeSeasonAwards(league) {
@@ -632,6 +741,7 @@ function computeSeasonAwards(league) {
   );
 
   const offensiveCandidates = [bestPasser, bestRusher, bestReceiver].filter(Boolean);
+  const bestOffensivePlayer = topBy(offensiveCandidates, (p) => totalOffensiveValue(p));
   const mvpPool = [...offensiveCandidates, bestDefender].filter(Boolean);
   const mvp = topBy(mvpPool, (p) => p.overall + totalOffensiveValue(p) * 0.01 + totalDefensiveValue(p) * 0.01);
 
@@ -646,7 +756,7 @@ function computeSeasonAwards(league) {
 
   const awards = {};
   if (mvp) awards.seasonMvp = { playerId: mvp.id, teamId: mvp.teamId };
-  if (offensiveCandidates[0]) awards.offensivePlayerOfYear = { playerId: offensiveCandidates[0].id, teamId: offensiveCandidates[0].teamId };
+  if (bestOffensivePlayer) awards.offensivePlayerOfYear = { playerId: bestOffensivePlayer.id, teamId: bestOffensivePlayer.teamId };
   if (bestDefender) awards.defensivePlayerOfYear = { playerId: bestDefender.id, teamId: bestDefender.teamId };
   if (rookieOffense) awards.offensiveRookieOfYear = { playerId: rookieOffense.id, teamId: rookieOffense.teamId };
   if (rookieDefense) awards.defensiveRookieOfYear = { playerId: rookieDefense.id, teamId: rookieDefense.teamId };
@@ -680,29 +790,6 @@ function refreshContractSummary(team) {
   };
 }
 
-function createNextSchedule(teams, season) {
-  return Array.from({ length: LEAGUE_RULES.regularSeasonWeeks }, (_, weekIndex) => ({
-    week: weekIndex + 1,
-    games: pairTeams(teams, weekIndex, season)
-  }));
-}
-
-function pairTeams(teams, weekIndex, season) {
-  const ids = teams.map((team) => team.id);
-  const rotated = [ids[0], ...ids.slice(1 + weekIndex), ...ids.slice(1, 1 + weekIndex)];
-  return Array.from({ length: ids.length / 2 }, (_, index) => ({
-    id: makeId("game", [season, weekIndex + 1, index + 1]),
-    week: weekIndex + 1,
-    awayTeamId: rotated[index],
-    homeTeamId: rotated[rotated.length - 1 - index],
-    played: false,
-    driveLog: [],
-    boxScore: null,
-    injuries: [],
-    keyEvents: []
-  }));
-}
-
 function createNextDraftClass(rng, season) {
   const FIRST_NAMES = ["Marcus", "Eli", "Dante", "Theo", "Caleb", "Jalen", "Miles", "Nico", "Roman", "Isaiah",
     "Graham", "Kai", "Luca", "Andre", "Jonah", "Malik", "Reed", "Tariq", "Cole", "Samir"];
@@ -715,6 +802,7 @@ function createNextDraftClass(rng, season) {
   return Array.from({ length: LEAGUE_RULES.draftClassSize }, (_, index) => {
     const position = positionSlots[index];
     const projectedOverall = generateProspectRating(index, rng, classStrength);
+    const scoutingProfile = createProspectScoutingProfile(rng, projectedOverall, position);
     return {
       id: makeId("prospect", [season, index + 1]),
       firstName: rng.pick(FIRST_NAMES),
@@ -723,11 +811,7 @@ function createNextDraftClass(rng, season) {
       age: rng.int(20, 23),
       ratingRange: [Math.max(55, projectedOverall - rng.int(4, 10)), Math.min(92, projectedOverall + rng.int(3, 8))],
       scouted: false,
-      exactRating: null,
-      detailedRatings: null,
-      traits: null,
-      potentialStars: null,
-      schemeFit: null,
+      ...scoutingProfile,
       expectedDraftPosition: index + 1,
       rookieContract: createRookieContractScale(index + 1),
       collegeHistory: `${rng.pick(["State", "Tech", "Northern", "Coastal", "Central"])} ${rng.pick(["A&M", "University", "College"])}`,
@@ -745,11 +829,12 @@ function createNextDraftClass(rng, season) {
 function createNextDraftState(teams, draftClass, season, standings) {
   const draftOrder = buildDraftOrder(teams, standings);
   const picks = [];
+  for (const team of teams) team.draftPicks = [];
   for (let round = 1; round <= LEAGUE_RULES.draftRounds; round += 1) {
     for (let slot = 1; slot <= LEAGUE_RULES.picksPerRound; slot += 1) {
       const overallPick = (round - 1) * LEAGUE_RULES.picksPerRound + slot;
       const originalTeamId = draftOrder[slot - 1];
-      picks.push({
+      const pick = {
         id: makeId("pick", [season, round, slot]),
         season,
         round,
@@ -759,7 +844,9 @@ function createNextDraftState(teams, draftClass, season, standings) {
         currentTeamId: originalTeamId,
         prospectId: null,
         rookieContract: createRookieContractScale(overallPick)
-      });
+      };
+      picks.push(pick);
+      teams.find((team) => team.id === originalTeamId).draftPicks.push(pick.id);
     }
   }
   return {

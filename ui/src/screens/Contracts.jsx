@@ -4,7 +4,7 @@ import { Topbar, Avatar, OvrPill, Stars, formatM } from '../components/Chrome.js
 import { estimateMarketSalary } from '@engine/simulation/free-agency.js';
 
 export function ScreenContracts({ onNav }) {
-  const { userTeam, actions, phase } = useLeague();
+  const { userTeam, actions } = useLeague();
   const team = userTeam;
   const [extTarget, setExtTarget] = useState(null);
   const [extSalary, setExtSalary] = useState(3);

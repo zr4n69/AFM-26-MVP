@@ -1,15 +1,17 @@
-const CACHE_NAME = 'afm26-v1';
+const CACHE_NAME = 'afm26-v2';
+const APP_ROOT = self.registration.scope;
+const appUrl = (path = '') => new URL(path, APP_ROOT).href;
 
 // Install: cache the shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
-        '/',
-        '/index.html',
-        '/manifest.json',
-        '/icons/icon-192.svg',
-        '/icons/icon-512.svg',
+        appUrl(),
+        appUrl('index.html'),
+        appUrl('manifest.json'),
+        appUrl('icons/icon-192.svg'),
+        appUrl('icons/icon-512.svg'),
       ]);
     })
   );
@@ -35,7 +37,7 @@ self.addEventListener('fetch', (event) => {
   if (url.protocol === 'chrome-extension:') return;
 
   // For navigation requests and JS/CSS: network first, fall back to cache
-  if (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/')) {
+  if (event.request.mode === 'navigate' || url.pathname.startsWith(new URL('assets/', APP_ROOT).pathname)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -45,7 +47,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(event.request).then((r) => r || caches.match('/')))
+        .catch(() => caches.match(event.request).then((r) => r || caches.match(APP_ROOT)))
     );
     return;
   }

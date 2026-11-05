@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { createLeague, FIXED_TEAM_PRESTIGE } from '@engine/data/factories.js';
-import { listSaveSlots, saveToSlot, loadFromSlot, deleteSlot, MAX_SLOTS } from './save-slots.js';
+import { listSaveSlots, saveToSlot, loadFromSlot, deleteSlot, setSaveProfile } from './save-slots.js';
 import { LeagueProvider } from './context/LeagueContext.jsx';
+import { useAuth } from './context/AuthContext.jsx';
 import { GameShell } from './GameShell.jsx';
+import { deleteCloudSave, synchronizeCloudSaves, uploadCloudSave } from './cloud-saves.js';
 
 function formatDate(iso) {
   if (!iso) return '';
@@ -63,22 +65,72 @@ const TEAM_OPTIONS = [
 ];
 
 
+function LoginScreen() {
+  const { configured, sendMagicLink, signInWithGoogle, continueOffline } = useAuth();
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState(null);
+
+  async function submitEmail(event) {
+    event.preventDefault();
+    setStatus(null);
+    try {
+      await sendMagicLink(email);
+      setStatus('Check your email for the secure sign-in link.');
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--turf-0)', padding: 20 }}>
+      <div className="card" style={{ width: 420, maxWidth: '100%' }}>
+        <div className="card-h"><h2>AFM-26 Account</h2></div>
+        <div className="card-b">
+          <p className="muted" style={{ marginTop: 0 }}>Sign in to synchronize five career slots across devices. Local play remains available offline.</p>
+          {configured ? (
+            <>
+              <form onSubmit={submitEmail} style={{ display: 'grid', gap: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 700 }}>Email address</label>
+                <input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="coach@example.com" />
+                <button className="btn primary" type="submit">Email me a sign-in link</button>
+              </form>
+              <button className="btn" style={{ width: '100%', marginTop: 10 }} onClick={() => signInWithGoogle().catch((error) => setStatus(error.message))}>Continue with Google</button>
+            </>
+          ) : (
+            <p className="chip neg" style={{ display: 'block' }}>Cloud login needs the Supabase environment variables.</p>
+          )}
+          {status && <p style={{ fontSize: 13 }}>{status}</p>}
+          <button className="btn" style={{ width: '100%', marginTop: 16 }} onClick={continueOffline}>Continue offline</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MainMenu({ onStartGame, onLoadGame }) {
+  const { user, offline, signOut } = useAuth();
   const [slots, setSlots] = useState(() => listSaveSlots());
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [newGameSlot, setNewGameSlot] = useState(null);
   const [selectedTeamIndex, setSelectedTeamIndex] = useState(0);
   const refresh = () => setSlots(listSaveSlots());
 
-  function handleDelete(index) {
+  const [cloudError, setCloudError] = useState(null);
+
+  async function handleDelete(index) {
     deleteSlot(index);
+    if (user) {
+      try { await deleteCloudSave(user.id, index); }
+      catch (error) { setCloudError(error.message); }
+    }
     setConfirmDelete(null);
     refresh();
   }
 
   function handleNewGame(slotIndex) {
     const league = createLeague(`afm26-${Date.now()}`, { playerTeamIndex: selectedTeamIndex });
-    saveToSlot(league, slotIndex, 'new-game');
+    const snapshot = saveToSlot(league, slotIndex, 'new-game');
+    if (user) uploadCloudSave(user.id, slotIndex, snapshot).catch((error) => setCloudError(error.message));
     onStartGame(league, slotIndex);
   }
 
@@ -111,6 +163,11 @@ function MainMenu({ onStartGame, onLoadGame }) {
             color: 'var(--neon, #C7FF3E)', fontSize: 12, margin: 0,
             letterSpacing: '0.18em', textTransform: 'uppercase',
           }}>American Football League · GM Simulation</p>
+          <div style={{ marginTop: 12, fontSize: 12, color: 'var(--ink-3)' }}>
+            {offline ? 'Offline profile' : user?.email}
+            <button className="btn sm" style={{ marginLeft: 10 }} onClick={signOut}>{offline ? 'Use cloud account' : 'Sign out'}</button>
+          </div>
+          {cloudError && <div className="chip neg" style={{ marginTop: 10 }}>{cloudError}</div>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -301,9 +358,32 @@ function MainMenu({ onStartGame, onLoadGame }) {
 }
 
 function App() {
+  const auth = useAuth();
   const [screen, setScreen] = useState('menu');
   const [activeLeague, setActiveLeague] = useState(null);
   const [activeSlot, setActiveSlot] = useState(null);
+  const [readyProfileId, setReadyProfileId] = useState(null);
+  const [profileRevision, setProfileRevision] = useState(0);
+
+  useEffect(() => {
+    if (!auth.profileId) {
+      return undefined;
+    }
+    let active = true;
+    setSaveProfile(auth.profileId);
+    const synchronize = auth.user
+      ? synchronizeCloudSaves(auth.user.id)
+      : Promise.resolve();
+    synchronize
+      .catch((error) => console.error('[cloud-sync]', error))
+      .finally(() => {
+        if (active) {
+          setReadyProfileId(auth.profileId);
+          setProfileRevision((revision) => revision + 1);
+        }
+      });
+    return () => { active = false; };
+  }, [auth.profileId, auth.user]);
 
   function handleStart(league, slotIndex) {
     setActiveLeague(league);
@@ -317,6 +397,10 @@ function App() {
     setScreen('menu');
   }
 
+  if (auth.loading) return <div className="page muted">Loading account…</div>;
+  if (!auth.profileId) return <LoginScreen />;
+  if (readyProfileId !== auth.profileId) return <div className="page muted">Synchronizing career saves…</div>;
+
   if (screen === 'game' && activeLeague) {
     return (
       <LeagueProvider key={activeSlot} initialLeague={activeLeague}>
@@ -325,7 +409,7 @@ function App() {
     );
   }
 
-  return <MainMenu onStartGame={handleStart} onLoadGame={handleStart} />;
+  return <MainMenu key={`${auth.profileId}-${profileRevision}`} onStartGame={handleStart} onLoadGame={handleStart} />;
 }
 
 export default App;

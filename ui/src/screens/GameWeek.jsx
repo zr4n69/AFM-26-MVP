@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, Fragment, memo } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, ColorBlock, FieldDiagram, InjBadge } from '../components/Chrome.jsx';
+import { Topbar, ColorBlock, InjBadge } from '../components/Chrome.jsx';
 import { PlayAnimationOverlay } from './PlayAnimations.jsx';
 
 const REGULAR_SEASON_WEEKS = 10;
@@ -185,7 +185,7 @@ function mapDrive(d, i, game, userTeam) {
 
 function driveOutcomeLabel(outcome) {
   if (!outcome) return '—';
-  const map = { touchdown: 'TD', fieldGoal: 'FG', punt: 'PUNT', interception: 'INT', fumble: 'FUM', turnoverOnDowns: 'TOD', safety: 'SAF', turnover: 'TO', sack: 'SACK' };
+  const map = { touchdown: 'TD', fieldGoal: 'FG', missedFieldGoal: 'MISSED FG', punt: 'PUNT', interception: 'INT', fumble: 'FUM', turnoverOnDowns: 'TOD', safety: 'SAF', turnover: 'TO', sack: 'SACK' };
   return map[outcome] || outcome;
 }
 
@@ -311,7 +311,7 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
       setDriveIndex(prev => prev + 1);
     }, 1700);
     return () => clearTimeout(timerRef.current);
-  }, [driveIndex, paused, drives.length]);
+  }, [driveIndex, paused, drives.length, onDone, setDriveIndex]);
 
   const keyPlays = game.keyEvents || [];
 

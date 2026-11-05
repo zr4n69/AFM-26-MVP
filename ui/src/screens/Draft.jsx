@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
 import { Topbar, ColorBlock, OvrPill, Stars } from '../components/Chrome.jsx';
 import { bridgeProspect } from '../data/bridge.js';
@@ -18,7 +18,7 @@ export function ScreenDraft({ onNav }) {
   const [isRunning, setIsRunning] = useState(false);
   const timerRef = useRef(null);
 
-  const picks = draft?.picks || [];
+  const picks = useMemo(() => draft?.picks || [], [draft?.picks]);
   const userPicks = picks.filter(p => p.currentTeamId === teamId);
   const revealed = scouting?.revealedGroupsByTeamId?.[teamId] || {};
   const freeAgencyComplete = !!league?.offseasonEvents?.freeAgencyComplete;
@@ -26,8 +26,9 @@ export function ScreenDraft({ onNav }) {
   const userHofBallot = league?.hallOfFame?.ballotsByTeamId?.[teamId] || [];
   const hofComplete = hofEligible.length === 0 || userHofBallot.length > 0;
 
-  // Sort teams by record for draft order display
-  const draftOrder = [...teams].sort((a, b) => a.w - b.w || a.diff - b.diff);
+  const draftOrder = (draft?.draftOrder || [])
+    .map(id => teams.find(team => team.id === id))
+    .filter(Boolean);
 
   // Find next undrafted pick
   const nextPickIdx = picks.findIndex(p => !p.prospectId);
@@ -46,20 +47,20 @@ export function ScreenDraft({ onNav }) {
 
     const idx = picks.findIndex(p => !p.prospectId);
     if (idx === -1) {
-      // Draft complete
-      setIsRunning(false);
-      actions.finalizeDraft();
-      setMode('results');
-      return;
+      const finishTimer = setTimeout(() => {
+        setIsRunning(false);
+        actions.finalizeDraft();
+        setMode('results');
+      }, 0);
+      return () => clearTimeout(finishTimer);
     }
 
-    setCurrentPickIdx(idx);
     const pick = picks[idx];
 
     // If it's the user's pick, pause
     if (pick.currentTeamId === teamId) {
-      setIsRunning(false);
-      return;
+      const pauseTimer = setTimeout(() => setIsRunning(false), 0);
+      return () => clearTimeout(pauseTimer);
     }
 
     // CPU pick with delay
@@ -75,6 +76,7 @@ export function ScreenDraft({ onNav }) {
           position: result.prospect.position,
           rating: result.player.overall,
         }]);
+        setCurrentPickIdx(idx + 1);
       }
     }, 400);
 
@@ -393,14 +395,16 @@ export function ScreenDraft({ onNav }) {
                   {picks.filter(p => p.prospectId).map(p => {
                     const prospect = draftClass.find(pr => pr.id === p.prospectId);
                     const t = findTeam(p.currentTeamId);
-                    const mid = prospect ? Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2) : 0;
+                    const overall = prospect
+                      ? prospect.exactRating ?? Math.round((prospect.ratingRange[0] + prospect.ratingRange[1]) / 2)
+                      : 0;
                     return (
                       <tr key={p.id} style={p.currentTeamId === teamId ? { background: 'var(--bg-2)', fontWeight: 600 } : {}}>
                         <td className="num mono">R{p.round} #{p.overallPick}</td>
                         <td><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ColorBlock team={t} size={16} /> {t?.name}</div></td>
                         <td><strong>{prospect ? `${prospect.firstName} ${prospect.lastName}` : '—'}</strong></td>
                         <td className="mono">{prospect?.position}</td>
-                        <td className="num"><OvrPill ovr={mid} /></td>
+                        <td className="num"><OvrPill ovr={overall} /></td>
                       </tr>
                     );
                   })}

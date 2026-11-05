@@ -23,7 +23,10 @@ jobs:
         run: npm ci
       - name: Build
         working-directory: ui
-        run: npx vite build
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
       - name: Copy PWA files
         working-directory: ui
         run: cp public/sw.js dist/ 2>/dev/null; cp public/manifest.json dist/ 2>/dev/null; true

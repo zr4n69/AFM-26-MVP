@@ -46,7 +46,7 @@ test("concept selection responds to systems and tendencies", () => {
   const [offense, defense] = league.teams;
   updateStrategy(league, offense.id, {
     offensiveSystem: "verticalAirRaid",
-    tendencies: { runPassLean: -100, deepPassing: 100, aggression: 80 }
+    tendencies: { runPassLean: 100, deepPassing: 100, aggression: 80 }
   });
   updateStrategy(league, defense.id, {
     defensiveSystem: "manBlitz",
@@ -98,6 +98,36 @@ test("simulateWeek updates week, scouting currency, standings, and CPU plans", (
   assert.equal(league.autosaveLog.at(-1).event, "week");
 });
 
+test("weeks must be simulated once and in sequence", () => {
+  const league = createLeague("week-sequence");
+  simulateWeek(league, 1, { seed: "week-one" });
+  const currencyAfterWeekOne = league.scouting.currencyByTeamId[league.teams[0].id];
+  const autosavesAfterWeekOne = league.autosaveLog.length;
+
+  assert.throws(
+    () => simulateWeek(league, 1, { seed: "week-one-replay" }),
+    /next scheduled week is Week 2/
+  );
+  assert.throws(
+    () => simulateWeek(league, 4, { seed: "week-four-skip" }),
+    /next scheduled week is Week 2/
+  );
+  assert.equal(league.scouting.currencyByTeamId[league.teams[0].id], currencyAfterWeekOne);
+  assert.equal(league.autosaveLog.length, autosavesAfterWeekOne);
+  assert.equal(league.currentWeek, 1);
+});
+
+test("simulateRegularSeason resumes after the current week", () => {
+  const league = createLeague("season-resume");
+  simulateWeek(league, 1, { seed: "resume-week-one" });
+
+  const remainingWeeks = simulateRegularSeason(league, { seed: "resume-rest" });
+
+  assert.equal(remainingWeeks.length, 9);
+  assert.equal(league.currentWeek, 10);
+  assert.ok(league.schedule.every((week) => week.games.every((game) => game.played)));
+});
+
 test("regular-season results can seed and complete the 6-team playoff", () => {
   const league = createLeague("playoff-sim");
   simulateRegularSeason(league, { seed: "season-seed" });
@@ -122,4 +152,39 @@ test("runCpuTeamManagement refreshes depth charts and planning state", () => {
   assert.equal(plans.length, league.teams.length);
   assert.ok(plans.every((plan) => "repairInvalidRoster" in plan.cpuPlan));
   assert.ok(plans.every((plan) => Array.isArray(plan.cpuPlan.releaseCandidates)));
+});
+
+test("games preserve the player-controlled team's preferred depth chart", () => {
+  const league = createLeague("preferred-depth-chart", { playerTeamIndex: 0 });
+  const team = league.teams[0];
+  team.depthChart.WR = [...team.depthChart.WR].reverse();
+  const preferredChart = structuredClone(team.depthChart);
+
+  simulateWeek(league, 1, { seed: "preferred-depth-week" });
+
+  assert.deepEqual(team.depthChart, preferredChart);
+});
+
+test("weekly recovery reduces fatigue between games", () => {
+  const league = createLeague("weekly-fatigue", { playerTeamIndex: 0 });
+  const specialist = league.teams[0].roster.find((player) => player.position === "P");
+  simulateWeek(league, 1, { seed: "fatigue-week-one" });
+  specialist.fatigue = 100;
+
+  simulateWeek(league, 2, { seed: "fatigue-week-two" });
+
+  assert.equal(specialist.fatigue, 65);
+});
+
+test("recovered players remain in their preferred depth-chart position", () => {
+  const league = createLeague("injury-depth-recovery", { playerTeamIndex: 0 });
+  const team = league.teams[0];
+  const starterId = team.depthChart.OT[0];
+  const starter = team.roster.find((player) => player.id === starterId);
+  starter.health = { status: "questionable", injury: "test", weeksRemaining: 1 };
+
+  simulateWeek(league, 1, { seed: "injury-recovery-week" });
+
+  assert.equal(starter.health.status, "healthy");
+  assert.equal(team.depthChart.OT[0], starterId);
 });

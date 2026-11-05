@@ -16,12 +16,12 @@ const POSITION_GROUPS = [
 ];
 
 const SCOUT_TIERS = [
-  { level: 'surface',  cost: 2, label: 'Surface',  reveals: 'Exact OVR estimate' },
-  { level: 'standard', cost: 4, label: 'Standard', reveals: 'OVR + hidden traits' },
-  { level: 'deep',     cost: 6, label: 'Deep',     reveals: 'OVR + traits + potential stars' },
+  { level: 'surface',  cost: 2, label: 'Surface',  reveals: 'Narrower OVR range' },
+  { level: 'standard', cost: 4, label: 'Standard', reveals: 'Exact OVR + hidden traits' },
+  { level: 'deep',     cost: 6, label: 'Deep',     reveals: 'OVR + traits + potential stars + scheme fit' },
 ];
 
-export function ScreenScouting({ onNav }) {
+export function ScreenScouting() {
   const { userTeam, scouting, draftClass, actions, _engine } = useLeague();
   const league = _engine;
 

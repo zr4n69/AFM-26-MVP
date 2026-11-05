@@ -3,6 +3,27 @@ import { Topbar, ColorBlock } from '../components/Chrome.jsx';
 
 const CONFERENCES = ['West', 'East', 'North', 'South'];
 
+function ProjectionBox({ team, seed, userTeam }) {
+  if (!team) return (
+    <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-4)', fontSize: 13 }}>
+      <span className="mono" style={{ width: 18, display: 'inline-block', fontSize: 11 }}>{seed}</span> TBD
+    </div>
+  );
+  return (
+    <div style={{
+      padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10,
+      borderBottom: '1px solid var(--line-soft)',
+      background: team.id === userTeam.id ? 'var(--bg-2)' : 'var(--bg-1)',
+      fontWeight: team.id === userTeam.id ? 700 : 500,
+    }}>
+      <span className="mono" style={{ width: 18, fontSize: 11, color: 'var(--ink-4)' }}>{seed}</span>
+      <ColorBlock team={team} size={16} />
+      <span style={{ flex: 1, fontSize: 13 }}>{team.name}</span>
+      <span className="mono muted" style={{ fontSize: 11 }}>{team.w}-{team.l}</span>
+    </div>
+  );
+}
+
 export function ScreenStandings() {
   const { teams, userTeam, week, season } = useLeague();
   if (!userTeam) return null;
@@ -79,28 +100,7 @@ function PlayoffProjection({ teams, userTeam }) {
     .sort((a, b) => b.pct - a.pct || b.diff - a.diff)
     .slice(0, 6);
 
-  const Box = ({ team, seed }) => {
-    if (!team) return (
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--line-soft)', color: 'var(--ink-4)', fontSize: 13 }}>
-        <span className="mono" style={{ width: 18, display: 'inline-block', fontSize: 11 }}>{seed}</span> TBD
-      </div>
-    );
-    return (
-      <div style={{
-        padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10,
-        borderBottom: '1px solid var(--line-soft)',
-        background: team.id === userTeam.id ? 'var(--bg-2)' : 'var(--bg-1)',
-        fontWeight: team.id === userTeam.id ? 700 : 500,
-      }}>
-        <span className="mono" style={{ width: 18, fontSize: 11, color: 'var(--ink-4)' }}>{seed}</span>
-        <ColorBlock team={team} size={16} />
-        <span style={{ flex: 1, fontSize: 13 }}>{team.name}</span>
-        <span className="mono muted" style={{ fontSize: 11 }}>{team.w}-{team.l}</span>
-      </div>
-    );
-  };
-
-  const card = { border: '1px solid var(--line)', borderRadius: 'var(--r-md)', background: 'white', overflow: 'hidden' };
+  const card = { border: '1px solid var(--line)', borderRadius: 'var(--r-md)', background: 'var(--bg-1)', overflow: 'hidden' };
 
   return (
     <>
@@ -112,22 +112,22 @@ function PlayoffProjection({ teams, userTeam }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 36, alignItems: 'start' }}>
           <div>
             <div style={{ font: '700 11px var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Wild-Card Round</div>
-            <div style={card}><Box team={seeds[2]} seed="3" /><Box team={seeds[5]} seed="6" /></div>
+            <div style={card}><ProjectionBox team={seeds[2]} seed="3" userTeam={userTeam} /><ProjectionBox team={seeds[5]} seed="6" userTeam={userTeam} /></div>
             <div style={{ height: 16 }} />
-            <div style={card}><Box team={seeds[3]} seed="4" /><Box team={seeds[4]} seed="5" /></div>
+            <div style={card}><ProjectionBox team={seeds[3]} seed="4" userTeam={userTeam} /><ProjectionBox team={seeds[4]} seed="5" userTeam={userTeam} /></div>
             <div style={{ marginTop: 20, font: '700 11px var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Byes</div>
-            <div style={card}><Box team={seeds[0]} seed="1" /><Box team={seeds[1]} seed="2" /></div>
+            <div style={card}><ProjectionBox team={seeds[0]} seed="1" userTeam={userTeam} /><ProjectionBox team={seeds[1]} seed="2" userTeam={userTeam} /></div>
           </div>
           <div>
             <div style={{ font: '700 11px var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Semifinals</div>
-            <div style={card}><Box team={seeds[0]} seed="1" /><Box team={null} seed="" /></div>
+            <div style={card}><ProjectionBox team={seeds[0]} seed="1" userTeam={userTeam} /><ProjectionBox team={null} seed="" userTeam={userTeam} /></div>
             <div style={{ height: 16 }} />
-            <div style={card}><Box team={seeds[1]} seed="2" /><Box team={null} seed="" /></div>
+            <div style={card}><ProjectionBox team={seeds[1]} seed="2" userTeam={userTeam} /><ProjectionBox team={null} seed="" userTeam={userTeam} /></div>
           </div>
           <div>
             <div style={{ font: '700 11px var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>AFL Championship</div>
             <div style={{ ...card, borderColor: 'var(--accent)', borderWidth: 2 }}>
-              <Box team={null} seed="" /><Box team={null} seed="" />
+              <ProjectionBox team={null} seed="" userTeam={userTeam} /><ProjectionBox team={null} seed="" userTeam={userTeam} />
             </div>
             <div style={{ marginTop: 18, padding: 14, background: 'var(--accent-soft)', borderRadius: 'var(--r-md)', textAlign: 'center' }}>
               <div className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Champion</div>

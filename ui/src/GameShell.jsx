@@ -1,40 +1,31 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useLeague } from './context/LeagueContext.jsx';
+import { useAuth } from './context/AuthContext.jsx';
 import { Sidebar, ErrorBoundary } from './components/Chrome.jsx';
-import { ScreenDashboard } from './screens/Dashboard.jsx';
-import { ScreenRoster } from './screens/Roster.jsx';
-import { ScreenDepthChart } from './screens/DepthChart.jsx';
-import { ScreenStrategy } from './screens/Strategy.jsx';
-import { ScreenContracts } from './screens/Contracts.jsx';
-import { ScreenGameWeek } from './screens/GameWeek.jsx';
-import { ScreenStandings } from './screens/Standings.jsx';
-import { ScreenLeaders } from './screens/Leaders.jsx';
-import { ScreenTraining } from './screens/Training.jsx';
-import { ScreenScouting } from './screens/Scouting.jsx';
-import { ScreenDraft } from './screens/Draft.jsx';
-import { ScreenFreeAgency } from './screens/FreeAgency.jsx';
-import { ScreenTrades } from './screens/Trades.jsx';
-import { ScreenAwards } from './screens/Awards.jsx';
-import { ScreenHallOfFame } from './screens/HallOfFame.jsx';
 import { Chyron } from './components/Chyron.jsx';
 import { saveToSlot } from './save-slots.js';
+import { uploadCloudSave } from './cloud-saves.js';
+
+function lazyNamed(loader, exportName) {
+  return lazy(() => loader().then((module) => ({ default: module[exportName] })));
+}
 
 const SCREENS = {
-  dashboard: ScreenDashboard,
-  roster: ScreenRoster,
-  depth: ScreenDepthChart,
-  strategy: ScreenStrategy,
-  contracts: ScreenContracts,
-  training: ScreenTraining,
-  gameweek: ScreenGameWeek,
-  standings: ScreenStandings,
-  leaders: ScreenLeaders,
-  scouting: ScreenScouting,
-  draft: ScreenDraft,
-  fa: ScreenFreeAgency,
-  trades: ScreenTrades,
-  awards: ScreenAwards,
-  hof: ScreenHallOfFame,
+  dashboard: lazyNamed(() => import('./screens/Dashboard.jsx'), 'ScreenDashboard'),
+  roster: lazyNamed(() => import('./screens/Roster.jsx'), 'ScreenRoster'),
+  depth: lazyNamed(() => import('./screens/DepthChart.jsx'), 'ScreenDepthChart'),
+  strategy: lazyNamed(() => import('./screens/Strategy.jsx'), 'ScreenStrategy'),
+  contracts: lazyNamed(() => import('./screens/Contracts.jsx'), 'ScreenContracts'),
+  training: lazyNamed(() => import('./screens/Training.jsx'), 'ScreenTraining'),
+  gameweek: lazyNamed(() => import('./screens/GameWeek.jsx'), 'ScreenGameWeek'),
+  standings: lazyNamed(() => import('./screens/Standings.jsx'), 'ScreenStandings'),
+  leaders: lazyNamed(() => import('./screens/Leaders.jsx'), 'ScreenLeaders'),
+  scouting: lazyNamed(() => import('./screens/Scouting.jsx'), 'ScreenScouting'),
+  draft: lazyNamed(() => import('./screens/Draft.jsx'), 'ScreenDraft'),
+  fa: lazyNamed(() => import('./screens/FreeAgency.jsx'), 'ScreenFreeAgency'),
+  trades: lazyNamed(() => import('./screens/Trades.jsx'), 'ScreenTrades'),
+  awards: lazyNamed(() => import('./screens/Awards.jsx'), 'ScreenAwards'),
+  hof: lazyNamed(() => import('./screens/HallOfFame.jsx'), 'ScreenHallOfFame'),
 };
 
 // Bottom nav tabs (visible on mobile)
@@ -158,33 +149,54 @@ function MobileMenuOverlay({ open, active, onNav, onClose, onSave, onExit, team,
 export function GameShell({ slotIndex, onExitToMenu }) {
   const [activeScreen, setActiveScreen] = useState('dashboard');
   const ctx = useLeague();
-  const { userTeam, season, week, actions } = ctx;
+  const { user } = useAuth();
+  const { userTeam, season, week, actions, revision, actionError } = ctx;
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const initialRevision = useRef(true);
 
-  const save = useCallback(() => {
+  const persist = useCallback((reason = 'manual') => {
     try {
       const league = actions.getRawLeague();
-      saveToSlot(league, slotIndex, 'manual');
+      const snapshot = saveToSlot(league, slotIndex, reason);
+      if (user) {
+        uploadCloudSave(user.id, slotIndex, snapshot).catch((error) => {
+          console.error('[cloud-save]', error);
+          setSaveError(`Saved offline, but cloud sync failed: ${error.message}`);
+        });
+      }
       setLastSaved(new Date().toISOString());
       setSaveError(null);
+      return true;
     } catch (e) {
-      console.error('[save]', e);
+      console.error(`[${reason}]`, e);
       setSaveError(e.message);
+      return false;
     }
-  }, [actions, slotIndex]);
+  }, [actions, slotIndex, user]);
+  const save = useCallback(() => persist('manual'), [persist]);
+
+  useEffect(() => {
+    if (initialRevision.current) {
+      initialRevision.current = false;
+      return undefined;
+    }
+    const timer = window.setTimeout(() => persist('autosave'), 750);
+    return () => window.clearTimeout(timer);
+  }, [revision, persist]);
 
   useEffect(() => {
     function handleBeforeUnload(e) {
+      persist('before-unload');
       e.preventDefault();
       e.returnValue = '';
     }
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
+  }, [persist]);
 
   const ScreenComponent = SCREENS[activeScreen];
 
@@ -202,7 +214,9 @@ export function GameShell({ slotIndex, onExitToMenu }) {
       />
       <div className="main">
         <ErrorBoundary key={activeScreen}>
-          {ScreenComponent && <ScreenComponent onNav={setActiveScreen} />}
+          <Suspense fallback={<div className="card"><div className="card-b muted">Loading…</div></div>}>
+            {ScreenComponent && <ScreenComponent onNav={setActiveScreen} />}
+          </Suspense>
         </ErrorBoundary>
       </div>
 
@@ -235,6 +249,15 @@ export function GameShell({ slotIndex, onExitToMenu }) {
           message={saveError}
           onClose={() => setSaveError(null)}
           actions={<button className="btn" onClick={() => setSaveError(null)}>OK</button>}
+        />
+      )}
+
+      {actionError && (
+        <Dialog
+          title="Action Required"
+          message={actionError}
+          onClose={actions.clearActionError}
+          actions={<button className="btn" onClick={actions.clearActionError}>OK</button>}
         />
       )}
 

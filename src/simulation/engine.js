@@ -14,6 +14,7 @@ import { createRng, makeId } from "../data/random.js";
 const DRIVE_OUTCOMES = Object.freeze({
   TOUCHDOWN: "touchdown",
   FIELD_GOAL: "fieldGoal",
+  MISSED_FIELD_GOAL: "missedFieldGoal",
   PUNT: "punt",
   TURNOVER: "turnover",
   TURNOVER_ON_DOWNS: "turnoverOnDowns",
@@ -36,6 +37,10 @@ export function simulateGame(league, gameId, options = {}) {
   const homeTeam = requireTeam(league, game.homeTeamId);
   const awayTeam = requireTeam(league, game.awayTeamId);
   runCpuTeamManagement(league);
+  const preferredDepthCharts = new Map([
+    [homeTeam.id, structuredClone(homeTeam.depthChart)],
+    [awayTeam.id, structuredClone(awayTeam.depthChart)]
+  ]);
 
   const rng = createRng(options.seed ?? `${league.seed}-${league.currentSeason}-${game.id}`);
   const driveCount = options.driveCount ?? driveCountFor(homeTeam, awayTeam, rng);
@@ -119,6 +124,8 @@ export function simulateGame(league, gameId, options = {}) {
 
   // Generate storylines from notable game events
   generateStorylines(homeTeam, awayTeam, game, boxScore);
+  homeTeam.depthChart = preferredDepthCharts.get(homeTeam.id);
+  awayTeam.depthChart = preferredDepthCharts.get(awayTeam.id);
 
   league.games = league.games.filter((candidate) => candidate.id !== game.id);
   league.games.push(structuredClone(game));
@@ -127,10 +134,18 @@ export function simulateGame(league, gameId, options = {}) {
 }
 
 export function simulateWeek(league, week = league.currentWeek + 1, options = {}) {
+  const expectedWeek = league.currentWeek + 1;
+  if (week !== expectedWeek) {
+    throw new Error(`Cannot simulate Week ${week}; the next scheduled week is Week ${expectedWeek}.`);
+  }
   const scheduleWeek = league.schedule.find((candidate) => candidate.week === week);
   if (!scheduleWeek) throw new Error(`Unknown regular-season week: ${week}`);
+  if (scheduleWeek.games.every((game) => game.played)) {
+    throw new Error(`Week ${week} has already been simulated.`);
+  }
   league.phase = PHASES.REGULAR_SEASON;
   tickInjuryRecovery(league);
+  if (league.currentWeek > 0) recoverWeeklyFatigue(league);
   runCpuTeamManagement(league);
   const games = scheduleWeek.games.map((game) => simulateGame(league, game.id, options));
   league.currentWeek = Math.max(league.currentWeek, week);
@@ -143,6 +158,13 @@ export function simulateWeek(league, week = league.currentWeek + 1, options = {}
 
   recordAutosave(league, "week", { week, games: games.map((game) => game.id) });
   return games;
+}
+
+function recoverWeeklyFatigue(league) {
+  for (const player of league.teams.flatMap((team) => team.roster)) {
+    const recovery = player.traits.includes("durable") ? 40 : 35;
+    player.fatigue = clamp(player.fatigue - recovery, 0, 100);
+  }
 }
 
 function tickInjuryRecovery(league) {
@@ -165,7 +187,7 @@ function tickInjuryRecovery(league) {
 
 export function simulateRegularSeason(league, options = {}) {
   const weeks = [];
-  for (let week = 1; week <= LEAGUE_RULES.regularSeasonWeeks; week += 1) {
+  for (let week = league.currentWeek + 1; week <= LEAGUE_RULES.regularSeasonWeeks; week += 1) {
     weeks.push(simulateWeek(league, week, options));
   }
   return weeks;
@@ -286,13 +308,28 @@ function simulateDrive({ driveNumber, offense, defense, homeTeam, awayTeam, boxS
   const noise = rng.int(-noiseRange, noiseRange);
   const raw = strengthDiff + conceptFit + homeBonus + noise + sparkBonus + conservativePenalty;
   const yardsGained = clamp(Math.round(18 + raw + risk * 12 - pressure * 10), -20, 75);
-  const outcome = resolveOutcome({ yardsGained, risk, pressure, fieldPosition: situation.fieldPosition, rng });
+  const kicker = firstDepthPlayer(offense, "K");
+  const kickDistance = Math.max(18, 117 - clamp(situation.fieldPosition + yardsGained, 0, 99));
+  const outcome = resolveOutcome({
+    yardsGained,
+    risk,
+    pressure,
+    fieldPosition: situation.fieldPosition,
+    kickerRating: kicker?.overall ?? 50,
+    kickDistance,
+    rng
+  });
+  const turnoverType = outcome === DRIVE_OUTCOMES.TURNOVER
+    ? resolveTurnoverType(offensiveConcept, rng)
+    : null;
   const points = pointsForOutcome(outcome);
   const scoringTeamId = outcome === DRIVE_OUTCOMES.SAFETY ? defense.id : offense.id;
   addScore(boxScore, scoringTeamId, homeTeam.id, points);
 
-  const offensiveEvents = applyOffensiveStats(offense, offensiveConcept, yardsGained, outcome, rng);
-  const defensiveEvents = applyDefensiveStats(defense, defensiveConcept, outcome, yardsGained, pressure, rng);
+  const offensiveEvents = applyOffensiveStats(offense, offensiveConcept, yardsGained, outcome, turnoverType, rng);
+  const specialTeams = applySpecialTeamsStats(offense, outcome, kickDistance, rng);
+  offensiveEvents.push(...specialTeams.events);
+  const defensiveEvents = applyDefensiveStats(defense, defensiveConcept, outcome, turnoverType, yardsGained, pressure, rng);
   const fatigueChanges = applyFatigue(offense, defense, offensiveConcept, defensiveConcept);
   const injuryChecks = checkDriveInjuries(offense, defense, fatigueChanges, rng, situation.season, situation.seasonWeeksLeft);
   const keyPlayNotes = createKeyPlayNotes(offense, defense, offensiveConcept, defensiveConcept, outcome, yardsGained);
@@ -314,6 +351,9 @@ function simulateDrive({ driveNumber, offense, defense, homeTeam, awayTeam, boxS
     defensiveConceptId: defensiveConcept.id,
     yardsGained,
     outcome,
+    turnoverType,
+    kickDistance: outcome === DRIVE_OUTCOMES.FIELD_GOAL || outcome === DRIVE_OUTCOMES.MISSED_FIELD_GOAL ? kickDistance : null,
+    puntDistance: specialTeams.puntDistance,
     offensiveEvents,
     defensiveEvents,
     fatigueChanges,
@@ -322,22 +362,63 @@ function simulateDrive({ driveNumber, offense, defense, homeTeam, awayTeam, boxS
   };
 }
 
-function resolveOutcome({ yardsGained, risk, pressure, fieldPosition, rng }) {
+function resolveTurnoverType(concept, rng) {
+  if (concept.category === "run" || concept.category === "option") return "fumble";
+  return rng.next() < 0.65 ? "interception" : "fumble";
+}
+
+function resolveOutcome({ yardsGained, risk, pressure, fieldPosition, kickerRating, kickDistance, rng }) {
   const turnoverChance = 0.04 + risk * 0.06 + pressure * 0.05 + (yardsGained < 0 ? 0.04 : 0);
   if (fieldPosition <= 8 && yardsGained <= -4 && rng.next() < 0.22) return DRIVE_OUTCOMES.SAFETY;
   if (rng.next() < turnoverChance) return DRIVE_OUTCOMES.TURNOVER;
   if (fieldPosition + yardsGained >= 100) return DRIVE_OUTCOMES.TOUCHDOWN;
   if (yardsGained >= 65) return DRIVE_OUTCOMES.TOUCHDOWN;
   if (yardsGained >= 50 && rng.next() < 0.35) return DRIVE_OUTCOMES.TOUCHDOWN;
-  if (fieldPosition + yardsGained >= 75 && rng.next() < 0.65) return DRIVE_OUTCOMES.FIELD_GOAL;
+  if (fieldPosition + yardsGained >= 75 && rng.next() < 0.65) return resolveFieldGoal(kickerRating, kickDistance, rng);
   if (yardsGained >= 40 && rng.next() < 0.12) return DRIVE_OUTCOMES.TOUCHDOWN;
-  if (yardsGained >= 35 && rng.next() < 0.22) return DRIVE_OUTCOMES.FIELD_GOAL;
-  if (yardsGained >= 25 && rng.next() < 0.08) return DRIVE_OUTCOMES.FIELD_GOAL;
+  if (yardsGained >= 35 && rng.next() < 0.22) return resolveFieldGoal(kickerRating, kickDistance, rng);
+  if (yardsGained >= 25 && rng.next() < 0.08) return resolveFieldGoal(kickerRating, kickDistance, rng);
   if (yardsGained < 10 && rng.next() < 0.18) return DRIVE_OUTCOMES.TURNOVER_ON_DOWNS;
   return DRIVE_OUTCOMES.PUNT;
 }
 
-function applyOffensiveStats(team, concept, yards, outcome, rng) {
+function resolveFieldGoal(kickerRating, distance, rng) {
+  const ratingBonus = (kickerRating - 60) * 0.012;
+  const distancePenalty = Math.max(0, distance - 40) * 0.012;
+  const successChance = clamp(0.68 + ratingBonus - distancePenalty, 0.18, 0.98);
+  return rng.next() < successChance ? DRIVE_OUTCOMES.FIELD_GOAL : DRIVE_OUTCOMES.MISSED_FIELD_GOAL;
+}
+
+function applySpecialTeamsStats(team, outcome, kickDistance, rng) {
+  const events = [];
+  let puntDistance = null;
+  if (outcome === DRIVE_OUTCOMES.FIELD_GOAL || outcome === DRIVE_OUTCOMES.MISSED_FIELD_GOAL) {
+    const kicker = firstDepthPlayer(team, "K");
+    if (kicker) {
+      kicker.stats.fieldGoalsAttempted = (kicker.stats.fieldGoalsAttempted ?? 0) + 1;
+      events.push({ playerId: kicker.id, stat: "fieldGoalsAttempted", value: 1 });
+      if (outcome === DRIVE_OUTCOMES.FIELD_GOAL) {
+        kicker.stats.fieldGoalsMade = (kicker.stats.fieldGoalsMade ?? 0) + 1;
+        kicker.stats.fieldGoalYards = (kicker.stats.fieldGoalYards ?? 0) + kickDistance;
+        events.push({ playerId: kicker.id, stat: "fieldGoalsMade", value: 1 });
+        events.push({ playerId: kicker.id, stat: "fieldGoalYards", value: kickDistance });
+      }
+    }
+  }
+  if (outcome === DRIVE_OUTCOMES.PUNT) {
+    const punter = firstDepthPlayer(team, "P");
+    if (punter) {
+      puntDistance = clamp(Math.round(36 + (punter.overall - 60) * 0.32 + rng.int(-6, 6)), 25, 60);
+      punter.stats.punts = (punter.stats.punts ?? 0) + 1;
+      punter.stats.puntYards = (punter.stats.puntYards ?? 0) + puntDistance;
+      events.push({ playerId: punter.id, stat: "punts", value: 1 });
+      events.push({ playerId: punter.id, stat: "puntYards", value: puntDistance });
+    }
+  }
+  return { events, puntDistance };
+}
+
+function applyOffensiveStats(team, concept, yards, outcome, turnoverType, rng) {
   const events = [];
   const scheme = OFFENSIVE_STARTERS[team.strategy.offensiveSystem] || OFFENSIVE_STARTERS.balancedPro;
   const anyAvailable = firstAvailablePlayer(team, ["QB", "RB", "WR", "TE", "OT", "OG", "C"]);
@@ -366,14 +447,14 @@ function applyOffensiveStats(team, concept, yards, outcome, rng) {
     events.push({ playerId: qb.id, stat: "passingYards", value: safeYards });
     events.push({ playerId: receiver.id, stat: "receivingYards", value: safeYards });
   }
-  if (outcome === DRIVE_OUTCOMES.TURNOVER && concept.category !== "run" && rng.next() < 0.65) {
+  if (turnoverType === "interception") {
     qb.stats.interceptionsThrown += 1;
     events.push({ playerId: qb.id, stat: "interceptionsThrown", value: 1 });
   }
   return events;
 }
 
-function applyDefensiveStats(team, concept, outcome, yards, pressure, rng) {
+function applyDefensiveStats(team, concept, outcome, turnoverType, yards, pressure, rng) {
   const events = [];
   const scheme = DEFENSIVE_STARTERS[team.strategy.defensiveSystem] || DEFENSIVE_STARTERS.fourThreeZone;
   const tacklers = [
@@ -397,7 +478,7 @@ function applyDefensiveStats(team, concept, outcome, yards, pressure, rng) {
     rusher.stats.sacks += 1;
     events.push({ playerId: rusher.id, stat: "sacks", value: 1 });
   }
-  if (outcome === DRIVE_OUTCOMES.TURNOVER) {
+  if (turnoverType === "interception") {
     const coverPlayers = [...depthPlayers(team, "CB", Math.max(1, scheme.CB)), ...depthPlayers(team, "S", Math.max(1, scheme.S))];
     const defender = coverPlayers.length > 0 ? rng.pick(coverPlayers) : tackler;
     defender.stats.interceptions += 1;
@@ -415,7 +496,7 @@ function applyDefensiveStats(team, concept, outcome, yards, pressure, rng) {
     rusher.stats.puntDeflections += 1;
     events.push({ playerId: rusher.id, stat: "puntDeflections", value: 1 });
   }
-  if (outcome === DRIVE_OUTCOMES.FIELD_GOAL && rng.next() < 0.02) {
+  if (outcome === DRIVE_OUTCOMES.MISSED_FIELD_GOAL && rng.next() < 0.08) {
     const rushers = [...depthPlayers(team, "DL", 2), ...depthPlayers(team, "EDGE", 2)];
     const rusher = rushers.length > 0 ? rng.pick(rushers) : tackler;
     rusher.stats.kickDeflections += 1;
@@ -628,24 +709,10 @@ function checkDriveInjuries(offense, defense, fatigueChanges, rng, season, seaso
         : "questionable";
       player.health = { status: gameStatus, injury: injury.name, weeksRemaining: injury.weeksRemaining };
       player.injuryHistory.push({ injury: injury.name, season, weeksRemaining: injury.weeksRemaining });
-      substituteInjuredPlayer(team, player);
     }
     checks.push({ playerId, injured, injury: injured ? player.health.injury : null, weeksRemaining: injured ? player.health.weeksRemaining : 0 });
   }
   return checks;
-}
-
-function substituteInjuredPlayer(team, injuredPlayer) {
-  const position = injuredPlayer.position;
-  const depthIds = team.depthChart[position];
-  if (!depthIds) return;
-  team.depthChart[position] = depthIds.filter((id) => id !== injuredPlayer.id);
-  if (team.depthChart[position].length === 0) {
-    const fallback = team.roster.find(
-      (p) => p.position === position && p.id !== injuredPlayer.id && p.health.status === "healthy"
-    );
-    if (fallback) team.depthChart[position] = [fallback.id];
-  }
 }
 
 function updateBoxScoreStats(boxScore, offenseTeamId, homeTeamId, offensiveEvents, defensiveEvents, yards, outcome) {
@@ -706,8 +773,8 @@ function applyGameResultToStandings(league, game, homeTeam, awayTeam) {
 
 function offensiveConceptWeight(concept, strategy, situation) {
   let weight = concept.preferredSystems.includes(strategy.offensiveSystem) ? 6 : 2;
-  if (concept.category === "run") weight += Math.max(0, strategy.tendencies.runPassLean) / 25;
-  if (concept.category === "pass") weight += Math.max(0, -strategy.tendencies.runPassLean) / 25;
+  if (concept.category === "run") weight += Math.max(0, -strategy.tendencies.runPassLean) / 25;
+  if (concept.category === "pass") weight += Math.max(0, strategy.tendencies.runPassLean) / 25;
   if (concept.id === "fourVerticals" || concept.profile === "explosive") weight += strategy.tendencies.deepPassing / 20;
   if (situation.scoreDiff < -10 && concept.category === "pass") weight += 3;
   if (situation.scoreDiff > 10 && concept.category === "run") weight += 2;
@@ -754,7 +821,7 @@ function playerEffective(player) {
 function teamStrength(team) {
   const starters = Object.values(team.depthChart).map((ids) => ids[0]).filter(Boolean)
     .map((playerId) => team.roster.find((player) => player.id === playerId))
-    .filter(Boolean);
+    .filter((player) => player?.health.status === "healthy");
   if (starters.length === 0) return 50;
   const leaderCount = team.roster.filter((p) => p.traits.includes("leader")).length;
   const riskCount = team.roster.filter((p) => p.traits.includes("lockerRoomRisk")).length;
@@ -777,6 +844,8 @@ function conceptMatchup(offensiveConcept, defensiveConcept) {
 
 function createKeyPlayNotes(offense, defense, offensiveConcept, defensiveConcept, outcome, yards) {
   if (outcome === DRIVE_OUTCOMES.TOUCHDOWN) return [`${offense.name} hit ${offensiveConcept.name} against ${defensiveConcept.name} for a touchdown.`];
+  if (outcome === DRIVE_OUTCOMES.FIELD_GOAL) return [`${offense.name} converted a field goal.`];
+  if (outcome === DRIVE_OUTCOMES.MISSED_FIELD_GOAL) return [`${offense.name} missed a field-goal attempt.`];
   if (outcome === DRIVE_OUTCOMES.TURNOVER) return [`${defense.name} forced a turnover while showing ${defensiveConcept.name}.`];
   if (yards >= 45) return [`${offense.name} created an explosive ${yards}-yard drive with ${offensiveConcept.name}.`];
   if (yards < 0) return [`${defense.name} buried the drive with ${defensiveConcept.name}.`];
@@ -856,13 +925,18 @@ function requireStanding(league, teamId) {
 }
 
 function firstDepthPlayer(team, position) {
-  const id = team.depthChart[position]?.[0];
-  return id ? team.roster.find((player) => player.id === id) : null;
+  for (const id of team.depthChart[position] ?? []) {
+    const player = team.roster.find((candidate) => candidate.id === id);
+    if (player?.health.status === "healthy") return player;
+  }
+  return null;
 }
 
 function depthPlayers(team, position, limit) {
-  const ids = (team.depthChart[position] ?? []).slice(0, limit);
-  return ids.map((id) => team.roster.find((player) => player.id === id)).filter(Boolean);
+  return (team.depthChart[position] ?? [])
+    .map((id) => team.roster.find((player) => player.id === id))
+    .filter((player) => player?.health.status === "healthy")
+    .slice(0, limit);
 }
 
 function firstAvailablePlayer(team, positions) {
@@ -876,7 +950,7 @@ function firstAvailablePlayer(team, positions) {
 function topPlayers(team, positions, limit) {
   return positions.flatMap((position) => team.depthChart[position] ?? [])
     .map((playerId) => team.roster.find((player) => player.id === playerId))
-    .filter(Boolean)
+    .filter((player) => player?.health.status === "healthy")
     .slice(0, limit);
 }
 

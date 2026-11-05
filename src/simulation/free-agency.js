@@ -58,9 +58,12 @@ export function makeContractOffer(league, teamId, playerId, salary, years) {
   if (!team) throw new Error(`Unknown team: ${teamId}`);
   const player = league.freeAgents.find((p) => p.id === playerId);
   if (!player) throw new Error(`Player ${playerId} is not a free agent.`);
-  const activeCount = team.roster.filter((p) => p.health.status === "healthy").length;
-  if (activeCount >= LEAGUE_RULES.rosterLimit) {
-    throw new Error(`${team.name} active roster is full.`);
+  validateOfferTerms(salary, years);
+  if (team.roster.length >= LEAGUE_RULES.rosterLimit) {
+    throw new Error(`${team.name} roster is full.`);
+  }
+  if (!canAffordOffer(league, team, salary, years)) {
+    throw new Error(`${team.name} does not have enough salary-cap space for this offer.`);
   }
 
   league.pendingOffers ??= [];
@@ -106,9 +109,12 @@ export function resolvePendingOffers(league, options = {}) {
     }
 
     const team = league.teams.find((t) => t.id === winner.teamId);
-    const activeRoster = team ? team.roster.filter((p) => p.health.status === "healthy").length : 0;
-    if (!team || activeRoster >= LEAGUE_RULES.rosterLimit) {
+    if (!team || team.roster.length >= LEAGUE_RULES.rosterLimit) {
       results.rejections.push({ playerId, reason: "roster_full", player: playerInfo });
+      continue;
+    }
+    if (!canAffordOffer(league, team, winner.salary, winner.years)) {
+      results.rejections.push({ playerId, teamId: winner.teamId, reason: "cap_full", player: playerInfo });
       continue;
     }
 
@@ -138,10 +144,11 @@ export function computeAttractiveness(offer, player, league, prestigeWeight, rng
   const team = league.teams.find((t) => t.id === offer.teamId);
   if (!team) return 0;
 
-  const contractScore = contractValue(offer, player);
+  const contractScore = contractValue(offer, player, team);
   const prestigeScore = team.prestige / 5;
   const performanceScore = recentPerformance(team, league);
   const needScore = positionalNeed(team, player.position);
+  const opportunityScore = playingOpportunity(team, player);
   const moraleScore = ((team.morale?.score ?? 50) - 50) / 100; // -0.4 to +0.45
   const noise = (rng.next() - 0.5) * 0.12;
 
@@ -149,12 +156,13 @@ export function computeAttractiveness(offer, player, league, prestigeWeight, rng
   const balancePenalty = competitiveBalancePenalty(team, league);
 
   return (
-    contractScore * 0.35 +
-    prestigeScore * prestigeWeight * 0.20 +
-    performanceScore * 0.15 +
+    contractScore * 0.45 +
+    prestigeScore * prestigeWeight * 0.08 +
+    performanceScore * 0.10 +
     needScore * 0.10 +
+    opportunityScore * 0.10 +
     moraleScore * 0.05 +
-    balancePenalty * 0.15 +
+    balancePenalty * 0.12 +
     noise
   );
 }
@@ -166,12 +174,12 @@ export function prestigeInfluence(season) {
 function collectOffers(league, player, rng) {
   const offers = [];
   for (const team of league.teams) {
-    const activeCount = team.roster.filter((p) => p.health.status === "healthy").length;
-    if (activeCount >= LEAGUE_RULES.rosterLimit) continue;
+    if (team.roster.length >= LEAGUE_RULES.rosterLimit) continue;
     if (!teamWantsPlayer(team, player, rng)) continue;
 
     const salary = cpuOfferSalary(player, team, rng);
     const years = rng.int(1, Math.min(4, Math.max(1, 6 - Math.floor(player.age / 8))));
+    if (!canAffordOffer(league, team, salary, years)) continue;
     offers.push({ teamId: team.id, playerId: player.id, salary, years });
   }
   return offers;
@@ -215,11 +223,24 @@ export function estimateMarketSalary(player) {
   return Math.round(base * premium * ageFactor * injuryFactor);
 }
 
-function contractValue(offer, player) {
+function contractValue(offer, player, team) {
   const market = estimateMarketSalary(player);
   const totalOffered = offer.salary * offer.years;
-  const totalMarket = market * Math.max(1, offer.years);
+  // Stars may accept up to 8% less from an elite-prestige franchise. This is a
+  // soft recruiting advantage, not extra cap space, and matters only for talent.
+  const prestigeFactor = Math.max(0, Math.min(1, ((team?.prestige ?? 1) - 1) / 4));
+  const talentFactor = Math.max(0, Math.min(1, (player.overall - 70) / 18));
+  const prestigeDiscount = prestigeFactor * talentFactor * 0.08;
+  const totalMarket = market * Math.max(1, offer.years) * (1 - prestigeDiscount);
   return Math.min(1.0, totalOffered / totalMarket);
+}
+
+function playingOpportunity(team, player) {
+  const peers = team.roster.filter((candidate) => candidate.position === player.position);
+  if (peers.length === 0) return 1;
+  const bestCurrent = Math.max(...peers.map((candidate) => candidate.overall));
+  if (player.overall >= bestCurrent) return 1;
+  return Math.max(0, 1 - (bestCurrent - player.overall) / 15);
 }
 
 function recentPerformance(team, league) {
@@ -283,13 +304,33 @@ function resolveDecision(scoredOffers, rng) {
 function executeSigning(league, offer, player) {
   const team = league.teams.find((t) => t.id === offer.teamId);
   // Hard roster limit guard
-  if (team.roster.length >= LEAGUE_RULES.rosterLimit) return;
-  player.contract = createContractFromSalary(offer.salary, offer.years);
+  if (team.roster.length >= LEAGUE_RULES.rosterLimit) return false;
+  const contract = createContractFromSalary(offer.salary, offer.years);
+  if (team.contractSummary.committedCap + contract.capHit + rookieCapReserve(league, team.id) > team.salaryCap) return false;
+  player.contract = contract;
   player.freeAgentSeasonsUnsigned = 0;
   team.roster.push(player);
   league.freeAgents = league.freeAgents.filter((p) => p.id !== player.id);
   refreshContractSummary(team);
   refreshDepthChart(team);
+  return true;
+}
+
+function validateOfferTerms(salary, years) {
+  if (!Number.isFinite(salary) || salary <= 0) throw new Error("Offer salary must be positive.");
+  if (!Number.isInteger(years) || years < 1 || years > 5) throw new Error("Offer years must be between 1 and 5.");
+}
+
+function canAffordOffer(league, team, salary, years) {
+  const contract = createContractFromSalary(salary, years);
+  return team.contractSummary.committedCap + contract.capHit + rookieCapReserve(league, team.id) <= team.salaryCap;
+}
+
+export function rookieCapReserve(league, teamId) {
+  if (league.phase !== "offseason") return 0;
+  return (league.draft?.picks ?? [])
+    .filter((pick) => pick.currentTeamId === teamId && !pick.prospectId)
+    .reduce((sum, pick) => sum + (pick.rookieContract?.capHit ?? 0), 0);
 }
 
 function rankFreeAgents(freeAgents) {

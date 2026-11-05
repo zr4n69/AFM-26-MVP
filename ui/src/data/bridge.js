@@ -2,9 +2,14 @@ import { OFFENSIVE_STARTERS, DEFENSIVE_STARTERS, getSchemeStarters } from '@engi
 
 const OFF_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C'];
 const DEF_POSITIONS = ['EDGE', 'DL', 'LB', 'CB', 'S'];
-const ST_POSITIONS = ['K', 'P', 'RET'];
 
 const BASE = import.meta.env.BASE_URL;
+const DIVISION_LABELS = {
+  'Division 1': 'West',
+  'Division 2': 'East',
+  'Division 3': 'North',
+  'Division 4': 'South',
+};
 
 const TEAM_VISUALS = {
   'Florida Buccaneers':   { abbr: 'FLA', conf: 'West',  primary: '#A8322B', secondary: '#5A5754', tertiary: '#7A4B2A', logo: `${BASE}logos/FLA.png` },
@@ -25,7 +30,7 @@ const TEAM_VISUALS = {
   'Providence Anchors':   { abbr: 'PRO', conf: 'South', primary: '#2F5233', secondary: '#F4F4F4', tertiary: '#E8C547', logo: `${BASE}logos/PRO.png` },
 };
 
-export function bridgeTeam(engineTeam, league) {
+export function bridgeTeam(engineTeam) {
   if (!engineTeam) return { id: null, city: '', name: '', fullName: '', abbr: '???', conf: '', primary: '#333', secondary: '#999', tertiary: '#ccc', logo: null, roster: [], w: 0, l: 0, tie: 0, pf: 0, pa: 0, pct: 0, diff: 0, cap: 150, payroll: 0, capSpace: 150, ovr: 0, offRating: 0, defRating: 0, strategy: {}, storylines: [], rosterNeeds: {}, morale: 50, moraleNotes: [], _engine: {} };
   const visual = TEAM_VISUALS[engineTeam.name] || {};
   const roster = (engineTeam.roster || []).map(p => bridgePlayer(p, engineTeam));
@@ -65,7 +70,7 @@ export function bridgeTeam(engineTeam, league) {
     name: engineTeam.nickname,
     fullName: engineTeam.name,
     abbr: visual.abbr || engineTeam.city.slice(0, 3).toUpperCase(),
-    conf: visual.conf || engineTeam.division,
+    conf: DIVISION_LABELS[engineTeam.division] || engineTeam.division,
     primary: visual.primary || '#333',
     secondary: visual.secondary || '#999',
     tertiary: visual.tertiary || '#ccc',
@@ -163,7 +168,12 @@ export function bridgeProspect(prospect, revealedGroups) {
   const group = SCOUTING_GROUPS[prospect.position] || prospect.position;
   const revealLevel = revealedGroups?.[group] || null;
   const range = prospect.ratingRange || [0, 0];
-  const mid = Math.round((range[0] + range[1]) / 2);
+  const exact = prospect.exactRating;
+  const visibleRange = !revealLevel || exact == null
+    ? range
+    : revealLevel === 'surface'
+      ? [Math.max(range[0], exact - 3), Math.min(range[1], exact + 3)]
+      : [exact, exact];
 
   return {
     id: prospect.id,
@@ -171,17 +181,18 @@ export function bridgeProspect(prospect, revealedGroups) {
     pos: prospect.position,
     age: prospect.age,
     college: prospect.collegeHistory,
-    ratingRange: range,
+    ratingRange: visibleRange,
     projRank: prospect.expectedDraftPosition,
     combine: prospect.combineResults,
     combineRank: prospect.combineRank,
     drafted: !!prospect.draftedByTeamId,
-    // Revealed at surface+
-    ovr: revealLevel ? mid : null,
+    // Exact rating is revealed at standard and deep levels.
+    ovr: (revealLevel === 'standard' || revealLevel === 'deep') ? exact : null,
     // Revealed at standard+
     traits: (revealLevel === 'standard' || revealLevel === 'deep') ? (prospect.traits || []) : null,
     // Revealed at deep
     potential: revealLevel === 'deep' ? (prospect.potentialStars || null) : null,
+    schemeFit: revealLevel === 'deep' ? prospect.schemeFit : null,
     revealLevel,
     _engine: prospect,
   };
@@ -224,9 +235,11 @@ export function isTrainingWindowOpen(league) {
   if (league.phase === 'preseason') {
     const camp = league.training.camp;
     if (!camp) return closed;
-    const campUsed = camp.completed || (camp.sessions || []).some(s => s.completed);
-    if (campUsed) return { open: false, type: null, label: 'Training camp session already used' };
-    return { open: true, type: 'camp', label: 'Training Camp' };
+    const completedSessions = (camp.sessions || []).filter(s => s.completed).length;
+    if (camp.completed || completedSessions >= camp.days) {
+      return { open: false, type: null, label: 'Training camp complete' };
+    }
+    return { open: true, type: 'camp', label: `Training Camp · Day ${completedSessions + 1} of ${camp.days}` };
   }
   if (league.phase === 'regularSeason') {
     const windows = [3, 6, 9];

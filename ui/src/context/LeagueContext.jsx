@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { createLeague } from '@engine/data/factories.js';
-import { updateStrategy, setDepthChart, releasePlayer, signPlayer, extendContract, scheduleTrainingSession, resolveTrainingSession, scoutProspectGroup, draftProspect, processUndraftedFreeAgents, proposeTrade, completeTrade, castHallOfFameVotes, generatePlayoffBracket, advanceSeasonPhase } from '@engine/data/actions.js';
+import { ROSTER_TEMPLATE } from '@engine/data/constants.js';
+import { updateStrategy, setDepthChart, releasePlayer, signPlayer, extendContract, scheduleTrainingSession, resolveTrainingSession, scoutProspectGroup, draftProspect, processUndraftedFreeAgents, proposeTrade, completeTrade, castHallOfFameVotes, generatePlayoffBracket, advanceSeasonPhase, refreshContractSummary } from '@engine/data/actions.js';
 import { simulateWeek, generatePlayoffSeeds, simulatePlayoffRound } from '@engine/simulation/engine.js';
 import { runSeasonReview, runOffseason, advanceToNextSeason } from '@engine/simulation/season.js';
 import { cpuPickProspect, convertProspectToPlayer } from '@engine/simulation/cpu-ai.js';
@@ -12,10 +13,11 @@ import { bridgeLeague } from '../data/bridge.js';
 const LeagueContext = createContext(null);
 
 export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-mvp', playerTeamIndex = 0 }) {
-  const [league, setLeague] = useState(() =>
+  const [league] = useState(() =>
     initialLeague ?? createLeague(seed, { playerTeamIndex, playerPrestige: 4.25 })
   );
   const [rev, setRev] = useState(0);
+  const [actionError, setActionError] = useState(null);
 
   const bump = useCallback(() => setRev(r => r + 1), []);
 
@@ -91,6 +93,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
         const player = convertProspectToPlayer(league, result.prospect, team.id, rng);
         if (team.roster.length < 55) {
           team.roster.push(player);
+          refreshContractSummary(team);
         } else {
           league.freeAgents.push(player);
         }
@@ -115,6 +118,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
         const player = convertProspectToPlayer(league, result.prospect, team.id, rng);
         if (team.roster.length < 55) {
           team.roster.push(player);
+          refreshContractSummary(team);
         } else {
           league.freeAgents.push(player);
         }
@@ -262,6 +266,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     },
     startNextSeason() {
       try {
+        setActionError(null);
         if (league.phase !== 'offseason') {
           if (!league.awards.regularSeasonProcessed) runSeasonReview(league);
           runOffseason(league, { skipDraft: true, skipFreeAgency: true });
@@ -277,15 +282,28 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
         if (!freeAgencyComplete) throw new Error('Resolve offseason free agency before starting the next season.');
         if (!draftComplete) throw new Error('Complete the offseason draft before starting the next season.');
         if (!hofComplete) throw new Error('Cast your Hall of Fame ballot before starting the next season.');
+        const missingPositions = Object.keys(ROSTER_TEMPLATE)
+          .filter((position) => !userTeam?.roster.some((player) => player.position === position));
+        if (missingPositions.length > 0) {
+          throw new Error(`Sign a player at these required positions before starting the next season: ${missingPositions.join(', ')}.`);
+        }
+        if (userTeam?.contractSummary?.capSpace < 0) {
+          const overBy = Math.ceil(-userTeam.contractSummary.capSpace / 100_000) / 10;
+          throw new Error(`Release or restructure contracts to clear $${overBy.toFixed(1)}M in cap space before starting the next season.`);
+        }
 
         advanceToNextSeason(league);
         bump();
         return true;
       } catch (e) {
         console.error('[startNextSeason]', e);
+        setActionError(e.message || 'Unable to start the next season.');
         bump();
         return false;
       }
+    },
+    clearActionError() {
+      setActionError(null);
     },
     getPlayoff() {
       return league.playoff || null;
@@ -298,10 +316,13 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     },
   }), [league, bump]);
 
-  const bridged = useMemo(() => bridgeLeague(league), [league, rev]);
+  const bridged = useMemo(() => {
+    void rev;
+    return bridgeLeague(league);
+  }, [league, rev]);
 
   return (
-    <LeagueContext.Provider value={{ ...bridged, actions }}>
+    <LeagueContext.Provider value={{ ...bridged, actions, revision: rev, actionError }}>
       {children}
     </LeagueContext.Provider>
   );

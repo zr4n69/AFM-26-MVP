@@ -152,6 +152,9 @@ describe("Full mechanics test (2 runs × 2 seasons)", () => {
         const team = userTeam(league);
         const eligible = team.roster.find(p => p.contract.extensionEligible);
         if (eligible) {
+          team.salaryCap = 1_000_000_000;
+          team.contractSummary.salaryCap = team.salaryCap;
+          team.contractSummary.capSpace = team.salaryCap - team.contractSummary.committedCap;
           // Offer well above market (max possible market ≈ $35M) so always accepted
           const terms = {
             salary: 40_000_000,

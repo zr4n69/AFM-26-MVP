@@ -3,6 +3,7 @@ import {
   LEAGUE_RULES,
   PHASES,
   POSITION_CHANGE_GROUPS,
+  ROSTER_TEMPLATE,
   TENDENCY_RANGES,
   TRADE_STATUSES,
   TRAINING_INTENSITIES
@@ -39,9 +40,12 @@ export function setDepthChart(league, teamId, position, playerIds) {
 
 export function signPlayer(league, teamId, player) {
   const team = requireTeam(league, teamId);
-  const activeCount = team.roster.filter((p) => p.health.status === "healthy").length;
-  if (activeCount >= LEAGUE_RULES.rosterLimit) {
-    throw new Error(`Cannot sign ${player.id}; ${team.name} already has ${LEAGUE_RULES.rosterLimit} active players.`);
+  if (team.roster.length >= LEAGUE_RULES.rosterLimit) {
+    throw new Error(`Cannot sign ${player.id}; ${team.name} already has ${LEAGUE_RULES.rosterLimit} players.`);
+  }
+  const capHit = player.contract?.capHit ?? 0;
+  if (team.contractSummary.committedCap + capHit > team.salaryCap) {
+    throw new Error(`Cannot sign ${player.id}; the contract would exceed ${team.name}'s salary cap.`);
   }
   team.roster.push(player);
   removeFreeAgent(league, player.id);
@@ -54,6 +58,10 @@ export function releasePlayer(league, teamId, playerId) {
   const team = requireTeam(league, teamId);
   const playerIndex = team.roster.findIndex((player) => player.id === playerId);
   if (playerIndex === -1) throw new Error(`Player ${playerId} is not on ${team.name}.`);
+  const positionCount = team.roster.filter((player) => player.position === team.roster[playerIndex].position).length;
+  if (ROSTER_TEMPLATE[team.roster[playerIndex].position] && positionCount <= 1) {
+    throw new Error(`Cannot release the last ${team.roster[playerIndex].position} on ${team.name}.`);
+  }
   const [player] = team.roster.splice(playerIndex, 1);
   player.freeAgentSeasonsUnsigned = 0;
   league.freeAgents.push(player);
@@ -71,6 +79,7 @@ export function extendContract(league, teamId, playerId, terms) {
   const player = team.roster.find((candidate) => candidate.id === playerId);
   if (!player) throw new Error(`Player ${playerId} is not on ${team.name}.`);
   if (!player.contract.extensionEligible) throw new Error(`${player.firstName} ${player.lastName} is not extension eligible.`);
+  validateContractTerms(terms.salary, terms.yearsRemaining);
 
   // Player acceptance logic — compare offer to market expectations
   const acceptance = evaluateExtensionOffer(player, terms);
@@ -78,12 +87,14 @@ export function extendContract(league, teamId, playerId, terms) {
     return { rejected: true, reason: acceptance.reason, player: { firstName: player.firstName, lastName: player.lastName } };
   }
 
-  player.contract = {
+  const nextContract = {
     ...player.contract,
     ...terms,
     capHit: terms.capHit ?? terms.salary + Math.round((terms.guaranteedAmount ?? 0) / terms.yearsRemaining) + (terms.bonusAmount ?? 0),
     extensionEligible: terms.yearsRemaining <= 2
   };
+  validateReplacementContractCap(team, player.contract, nextContract);
+  player.contract = nextContract;
   refreshContractSummary(team);
   recordAutosave(league, "contract", { teamId, playerId, action: "extend" });
   return player.contract;
@@ -151,11 +162,13 @@ export function renegotiateContract(league, teamId, playerId, newSalary, newYear
   if (league.phase !== PHASES.OFFSEASON) {
     throw new Error("Contracts can only be renegotiated during the offseason.");
   }
-  const oldSalary = player.contract.salary;
+  validateContractTerms(newSalary, newYears);
+  const previousContract = player.contract;
+  const oldSalary = previousContract.salary;
   const salary = Math.max(500_000, newSalary);
   const yearsRemaining = Math.max(1, newYears);
   const guaranteedAmount = Math.round(salary * yearsRemaining * 0.2);
-  player.contract = {
+  const nextContract = {
     salary,
     yearsRemaining,
     guaranteedAmount,
@@ -168,9 +181,25 @@ export function renegotiateContract(league, teamId, playerId, newSalary, newYear
       capSavings: Math.max(0, salary - Math.round(guaranteedAmount / yearsRemaining))
     }
   };
+  validateReplacementContractCap(team, previousContract, nextContract);
+  player.contract = nextContract;
   refreshContractSummary(team);
   recordAutosave(league, "contract", { teamId, playerId, action: "renegotiate", from: oldSalary, to: salary });
   return player.contract;
+}
+
+function validateContractTerms(salary, years) {
+  if (!Number.isFinite(salary) || salary < 500_000) throw new Error("Contract salary must be at least $500,000.");
+  if (!Number.isInteger(years) || years < 1 || years > 5) throw new Error("Contract years must be between 1 and 5.");
+}
+
+function validateReplacementContractCap(team, previousContract, nextContract) {
+  const projectedCap = team.contractSummary.committedCap
+    - (previousContract?.capHit ?? 0)
+    + (nextContract?.capHit ?? 0);
+  if (projectedCap > team.salaryCap) {
+    throw new Error(`Contract would put ${team.name} over the salary cap.`);
+  }
 }
 
 export function estimateRenegotiationValue(player) {
@@ -320,6 +349,7 @@ export function completeTrade(league, tradeId) {
   }
   const fromTeam = requireTeam(league, trade.fromTeamId);
   const toTeam = requireTeam(league, trade.toTeamId);
+  validateTradeAssets(league, trade, fromTeam, toTeam);
   movePlayers(fromTeam, toTeam, trade.offeredPlayerIds);
   movePlayers(toTeam, fromTeam, trade.requestedPlayerIds);
   movePicks(league, trade.offeredPickIds, toTeam.id);
@@ -329,6 +359,54 @@ export function completeTrade(league, tradeId) {
   trade.status = TRADE_STATUSES.COMPLETED;
   recordAutosave(league, "trade", { tradeId, action: "complete" });
   return trade;
+}
+
+function validateTradeAssets(league, trade, fromTeam, toTeam) {
+  assertUniqueTradeAssets(trade.offeredPlayerIds, "offered players");
+  assertUniqueTradeAssets(trade.requestedPlayerIds, "requested players");
+  assertUniqueTradeAssets(trade.offeredPickIds, "offered picks");
+  assertUniqueTradeAssets(trade.requestedPickIds, "requested picks");
+
+  const offeredPlayers = trade.offeredPlayerIds.map((playerId) => requireRosterPlayer(fromTeam, playerId));
+  const requestedPlayers = trade.requestedPlayerIds.map((playerId) => requireRosterPlayer(toTeam, playerId));
+  for (const pickId of trade.offeredPickIds) {
+    const pick = requireDraftPick(league, pickId);
+    if (pick.currentTeamId !== fromTeam.id) throw new Error(`Pick ${pickId} is not owned by ${fromTeam.name}.`);
+  }
+  for (const pickId of trade.requestedPickIds) {
+    const pick = requireDraftPick(league, pickId);
+    if (pick.currentTeamId !== toTeam.id) throw new Error(`Pick ${pickId} is not owned by ${toTeam.name}.`);
+  }
+
+  const projectedFromRoster = [
+    ...fromTeam.roster.filter((player) => !trade.offeredPlayerIds.includes(player.id)),
+    ...requestedPlayers
+  ];
+  const projectedToRoster = [
+    ...toTeam.roster.filter((player) => !trade.requestedPlayerIds.includes(player.id)),
+    ...offeredPlayers
+  ];
+  validateProjectedRoster(fromTeam, projectedFromRoster);
+  validateProjectedRoster(toTeam, projectedToRoster);
+}
+
+function assertUniqueTradeAssets(assetIds, label) {
+  if (new Set(assetIds).size !== assetIds.length) throw new Error(`Trade contains duplicate ${label}.`);
+}
+
+function validateProjectedRoster(team, roster) {
+  if (roster.length > LEAGUE_RULES.rosterLimit) {
+    throw new Error(`Trade would put ${team.name} over the ${LEAGUE_RULES.rosterLimit}-player roster limit.`);
+  }
+  for (const position of Object.keys(ROSTER_TEMPLATE)) {
+    if (!roster.some((player) => player.position === position)) {
+      throw new Error(`Trade would leave ${team.name} without a ${position}.`);
+    }
+  }
+  const committedCap = roster.reduce((sum, player) => sum + (player.contract?.capHit ?? 0), 0);
+  if (committedCap > team.salaryCap) {
+    throw new Error(`Trade would put ${team.name} over the salary cap.`);
+  }
 }
 
 export function changePlayerPosition(league, teamId, playerId, newPosition) {
@@ -349,8 +427,13 @@ export function changePlayerPosition(league, teamId, playerId, newPosition) {
 
 export function scheduleTrainingSession(league, teamId, playerPlans, options = {}) {
   const team = requireTeam(league, teamId);
+  if (playerPlans.length === 0) throw new Error("Training requires at least one focused player.");
   if (playerPlans.length > LEAGUE_RULES.maxFocusedTrainingPlayers) {
     throw new Error(`Training can focus at most ${LEAGUE_RULES.maxFocusedTrainingPlayers} players.`);
+  }
+  const uniquePlayerIds = new Set(playerPlans.map((plan) => plan.playerId));
+  if (uniquePlayerIds.size !== playerPlans.length) {
+    throw new Error("Each player can appear only once in a training session.");
   }
   for (const plan of playerPlans) {
     requireRosterPlayer(team, plan.playerId);
@@ -358,10 +441,29 @@ export function scheduleTrainingSession(league, teamId, playerPlans, options = {
       throw new Error(`Unsupported training intensity: ${plan.intensity}`);
     }
   }
+  const type = options.type ?? (league.phase === PHASES.PRESEASON ? "camp" : "regularSeason");
+  let regularSeasonWindow = null;
+  if (type === "camp") {
+    if (league.phase !== PHASES.PRESEASON) throw new Error("Training camp is available only during preseason.");
+    const completedSessions = league.training.camp.sessions.filter((candidate) => candidate.completed).length;
+    if (league.training.camp.completed || completedSessions >= league.training.camp.days) {
+      throw new Error("Training camp is already complete.");
+    }
+  } else if (type === "regularSeason") {
+    if (league.phase !== PHASES.REGULAR_SEASON) throw new Error("In-season training requires the regular season.");
+    regularSeasonWindow = league.training.regularSeason.windows.find(
+      (candidate) => candidate.afterWeek === league.currentWeek
+    );
+    if (!regularSeasonWindow || regularSeasonWindow.completed) {
+      throw new Error(`No training window is open after Week ${league.currentWeek}.`);
+    }
+  } else {
+    throw new Error(`Unsupported training session type: ${type}`);
+  }
   const session = {
     id: makeId("training", [league.currentSeason, teamId, league.currentWeek, trainingSessionCount(league) + 1]),
     teamId,
-    type: options.type ?? (league.phase === PHASES.PRESEASON ? "camp" : "regularSeason"),
+    type,
     week: league.currentWeek,
     playerPlans: playerPlans.map((plan) => ({
       ...plan,
@@ -373,9 +475,7 @@ export function scheduleTrainingSession(league, teamId, playerPlans, options = {
   if (session.type === "camp") {
     league.training.camp.sessions.push(session);
   } else {
-    const window = league.training.regularSeason.windows.find((candidate) => candidate.afterWeek >= league.currentWeek)
-      ?? league.training.regularSeason.windows.at(-1);
-    window.sessions.push(session);
+    regularSeasonWindow.sessions.push(session);
   }
   recordAutosave(league, "training", { teamId, sessionId: session.id });
   return session;
@@ -420,7 +520,8 @@ export function resolveTrainingSession(league, sessionId) {
 
   // Mark the containing training window as completed
   if (session.type === "camp") {
-    league.training.camp.completed = true;
+    const completedSessions = league.training.camp.sessions.filter((candidate) => candidate.completed).length;
+    league.training.camp.completed = completedSessions >= league.training.camp.days;
   } else {
     const window = league.training.regularSeason.windows.find(
       w => w.sessions.some(s => s.id === sessionId)
@@ -480,9 +581,26 @@ export function castHallOfFameVotes(league, teamId, playerIds) {
       league.hallOfFame.voteTotals[playerId] = (league.hallOfFame.voteTotals[playerId] ?? 0) + 1;
     }
   }
-  league.hallOfFame.inductedPlayerIds = Object.entries(league.hallOfFame.voteTotals)
+  const newlyInductedPlayerIds = Object.entries(league.hallOfFame.voteTotals)
     .filter(([, votes]) => votes >= LEAGUE_RULES.hallOfFameElectionThreshold)
-    .map(([playerId]) => playerId);
+    .map(([playerId]) => playerId)
+    .filter((playerId) => !league.hallOfFame.inductedPlayerIds.includes(playerId));
+  league.hallOfFame.inductedPlayerIds = [
+    ...new Set([...league.hallOfFame.inductedPlayerIds, ...newlyInductedPlayerIds])
+  ];
+  if (newlyInductedPlayerIds.length > 0) {
+    let currentClass = league.hallOfFame.history.find((entry) => entry.season === league.currentSeason);
+    if (!currentClass) {
+      currentClass = { season: league.currentSeason, inducted: [], playerIds: [] };
+      league.hallOfFame.history.push(currentClass);
+    }
+    for (const playerId of newlyInductedPlayerIds) {
+      const player = league.hallOfFame.eligiblePlayers?.find((candidate) => candidate.id === playerId);
+      if (!currentClass.playerIds.includes(playerId)) currentClass.playerIds.push(playerId);
+      const displayName = player ? `${player.firstName} ${player.lastName}` : playerId;
+      if (!currentClass.inducted.includes(displayName)) currentClass.inducted.push(displayName);
+    }
+  }
   recordAutosave(league, "hallOfFame", { teamId, votes: playerIds });
   return league.hallOfFame;
 }
@@ -526,7 +644,7 @@ function removeFreeAgent(league, playerId) {
   league.freeAgents = league.freeAgents.filter((player) => player.id !== playerId);
 }
 
-function refreshContractSummary(team) {
+export function refreshContractSummary(team) {
   const committedCap = team.roster.reduce((sum, player) => sum + player.contract.capHit, 0);
   team.contractSummary = {
     salaryCap: team.salaryCap,

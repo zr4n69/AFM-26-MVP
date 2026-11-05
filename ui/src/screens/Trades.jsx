@@ -34,7 +34,7 @@ function tradeStatLine(p) {
   return null;
 }
 
-export function ScreenTrades({ onNav }) {
+export function ScreenTrades() {
   const { userTeam, teams, trades, cpuTrades, draft, actions, _engine } = useLeague();
   const league = _engine;
   const teamId = userTeam.id;

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, Avatar, OvrPill } from '../components/Chrome.jsx';
+import { Topbar } from '../components/Chrome.jsx';
 
 const VOTES_PER_TEAM = 2;
 const ELECTION_THRESHOLD = 4;
 
-export function ScreenHallOfFame({ onNav }) {
-  const { userTeam, teams, hallOfFame, season, phase, actions } = useLeague();
+export function ScreenHallOfFame() {
+  const { userTeam, teams, hallOfFame, season, actions } = useLeague();
 
   const [myVotes, setMyVotes] = useState(() => {
     const existing = hallOfFame?.ballotsByTeamId?.[userTeam.id];
@@ -19,11 +19,11 @@ export function ScreenHallOfFame({ onNav }) {
   const eligible = (hallOfFame?.eligiblePlayers || []).map(p => {
     const lastTeam = teams.find(t => t.id === p.lastTeamId);
     const awards = (p.awards || []);
-    const mvps = awards.filter(a => a.type === 'seasonMvp').length;
-    const allPro1 = awards.filter(a => a.type === 'allPro' && a.team === 1).length;
-    const allPro2 = awards.filter(a => a.type === 'allPro' && a.team === 2).length;
-    const poy = awards.filter(a => ['offensivePlayerOfYear', 'defensivePlayerOfYear'].includes(a.type)).length;
-    const roy = awards.filter(a => ['offensiveRookieOfYear', 'defensiveRookieOfYear'].includes(a.type)).length;
+    const mvps = awards.filter(a => a.awardType === 'seasonMvp').length;
+    const allPro1 = awards.filter(a => a.awardType === 'firstTeamAllPro').length;
+    const allPro2 = awards.filter(a => a.awardType === 'secondTeamAllPro').length;
+    const poy = awards.filter(a => ['offensivePlayerOfYear', 'defensivePlayerOfYear'].includes(a.awardType)).length;
+    const roy = awards.filter(a => ['offensiveRookieOfYear', 'defensiveRookieOfYear'].includes(a.awardType)).length;
 
     const parts = [];
     if (mvps) parts.push(`MVP×${mvps}`);
