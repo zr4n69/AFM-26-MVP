@@ -3,18 +3,19 @@
  * Triggered by drive results, layered absolutely over the field container.
  * All animations are CSS-only (transforms/opacity), skippable, and reduced-motion safe.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 
 // ── Durations (ms) ────────────────────────────────────────────────
 const DURATIONS = {
-  touchdown:       2100,
-  fieldGoal:       1600,
-  safety:          1900,
-  turnover:        1500,
-  turnoverOnDowns: 1200,
-  sack:            1100,
-  bigPlay:          900,
+  touchdown:       1250,
+  fieldGoal:       1050,
+  safety:          1100,
+  turnover:        1050,
+  turnoverOnDowns: 950,
+  sack:             900,
+  bigPlay:          800,
 };
+const EVENT_DELAY = 1250;
 
 // ── Classify a drive into an animation event ───────────────────────
 function classify(drive) {
@@ -76,7 +77,7 @@ const CSS = `
   100% { transform:scale(1.8); opacity:0;  border-width:1px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-afm-anim] { animation-duration: 0.1ms !important; }
+  [data-afm-anim] { animation-duration: 0.1ms !important; animation-delay: 0ms !important; }
 }
 `;
 let _injected = false;
@@ -91,24 +92,24 @@ function injectCSS() {
 
 // ── Primitive overlay pieces ───────────────────────────────────────
 
-function ColorSweep({ primary, duration }) {
+function ColorSweep({ primary, duration, delay }) {
   return (
     <div data-afm-anim style={{
       position: 'absolute', inset: 0, transformOrigin: 'left center', pointerEvents: 'none', zIndex: 1,
       background: `linear-gradient(90deg, transparent 5%, ${primary}50 50%, transparent 95%)`,
-      animation: `afm-sweep ${duration * .9}ms ease-out forwards`,
+      animation: `afm-sweep ${duration * .9}ms ease-out ${delay}ms both`,
     }} />
   );
 }
 
-function Banner({ label, sub, primary, duration }) {
+function Banner({ label, sub, primary, duration, delay }) {
   return (
     <div data-afm-anim style={{
       position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 3,
     }}>
       <div data-afm-anim style={{
-        animation: `afm-banner ${duration}ms cubic-bezier(.22,.9,.46,1) forwards`,
+        animation: `afm-banner ${duration}ms cubic-bezier(.22,.9,.46,1) ${delay}ms both`,
         textAlign: 'center',
       }}>
         <div style={{
@@ -137,13 +138,13 @@ function Banner({ label, sub, primary, duration }) {
   );
 }
 
-function LogoFlash({ logo, primary, duration }) {
+function LogoFlash({ logo, primary, duration, delay }) {
   if (!logo) return null;
   return (
     <div data-afm-anim style={{
       position: 'absolute', top: '12%', right: '10%',
       width: 60, height: 60, zIndex: 4, pointerEvents: 'none',
-      animation: `afm-logo ${duration * .88}ms ease-in-out forwards`,
+      animation: `afm-logo ${duration * .88}ms ease-in-out ${delay}ms both`,
     }}>
       <img src={logo} alt="" style={{
         width: '100%', height: '100%', objectFit: 'contain',
@@ -153,7 +154,7 @@ function LogoFlash({ logo, primary, duration }) {
   );
 }
 
-function PulseRings({ color, count = 2 }) {
+function PulseRings({ color, count = 2, delay }) {
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 2 }}>
       {Array.from({ length: count }, (_, i) => (
@@ -161,50 +162,50 @@ function PulseRings({ color, count = 2 }) {
           position: 'absolute',
           width: 72, height: 72, borderRadius: '50%',
           border: `3px solid ${color}`,
-          animation: `afm-ring 1.2s ease-out ${i * 200}ms forwards`,
+          animation: `afm-ring 1.2s ease-out ${delay + i * 160}ms both`,
         }} />
       ))}
     </div>
   );
 }
 
-function EndZoneGlow({ primary }) {
+function EndZoneGlow({ primary, delay }) {
   return (
     <div data-afm-anim style={{
       position: 'absolute', right: 0, top: 0, bottom: 0, width: '22%', zIndex: 1, pointerEvents: 'none',
       background: `linear-gradient(to left, ${primary}70, transparent)`,
-      animation: 'afm-endzone 2s ease-out forwards',
+      animation: `afm-endzone 1.2s ease-out ${delay}ms both`,
     }} />
   );
 }
 
-function GlitchLayer({ color }) {
+function GlitchLayer({ color, delay }) {
   return (
     <div data-afm-anim style={{
       position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none',
       background: `repeating-linear-gradient(0deg, ${color}12 0 1px, transparent 1px 4px)`,
-      animation: 'afm-glitch .45s steps(1) forwards',
+      animation: `afm-glitch .45s steps(1) ${delay}ms both`,
     }} />
   );
 }
 
-function BigPlayStreak({ primary }) {
+function BigPlayStreak({ primary, delay }) {
   return (
     <div data-afm-anim style={{
       position: 'absolute', top: '44%', left: 0, height: 5, zIndex: 2, pointerEvents: 'none',
       background: `linear-gradient(to right, ${primary}CC, ${primary}00)`,
-      animation: 'afm-streak .9s ease-out forwards',
+      animation: `afm-streak .8s ease-out ${delay}ms both`,
     }} />
   );
 }
 
-function SackRing() {
+function SackRing({ delay }) {
   return (
     <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none', zIndex: 2 }}>
       <div data-afm-anim style={{
         position: 'absolute', width: 64, height: 64, borderRadius: '50%',
         border: '6px solid #E15A2A',
-        animation: 'afm-sack-ring 1s ease-out forwards',
+        animation: `afm-sack-ring .8s ease-out ${delay}ms both`,
       }} />
     </div>
   );
@@ -212,60 +213,43 @@ function SackRing() {
 
 // ── Main overlay ───────────────────────────────────────────────────
 export function PlayAnimationOverlay({ currentDrive, team, opp, paused }) {
-  const [anim, setAnim] = useState(null);
-  const lastNumRef = useRef(-1);
-  const timerRef = useRef(null);
-
   useEffect(() => { injectCSS(); }, []);
 
-  useEffect(() => {
-    if (!currentDrive || paused) return;
-    if (currentDrive.num === lastNumRef.current) return;
-    lastNumRef.current = currentDrive.num;
+  if (!currentDrive || paused) return null;
+  const evt = classify(currentDrive);
+  if (!evt) return null;
 
-    const evt = classify(currentDrive);
-    if (!evt) return;
+  const isDefensivePlay = evt.type === 'turnover' || evt.type === 'turnoverOnDowns' || evt.type === 'sack';
+  let activeTeam;
+  if (isDefensivePlay) {
+    activeTeam = currentDrive.team === 'us' ? opp : team;
+  } else if (currentDrive.scoringTeam) {
+    activeTeam = currentDrive.scoringTeam === 'us' ? team : opp;
+  } else {
+    activeTeam = currentDrive.team === 'us' ? team : opp;
+  }
 
-    // Which team gets the color treatment
-    const isDefensivePlay = evt.type === 'turnover' || evt.type === 'turnoverOnDowns' || evt.type === 'sack';
-    let activeTeam;
-    if (isDefensivePlay) {
-      activeTeam = currentDrive.team === 'us' ? opp : team;
-    } else if (currentDrive.scoringTeam) {
-      activeTeam = currentDrive.scoringTeam === 'us' ? team : opp;
-    } else {
-      activeTeam = currentDrive.team === 'us' ? team : opp;
-    }
-
-    const duration = DURATIONS[evt.type] || 1400;
-    setAnim({ ...evt, activeTeam, duration });
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setAnim(null), duration + 120);
-    return () => clearTimeout(timerRef.current);
-  }, [currentDrive, paused, team, opp]);
-
-  if (!anim) return null;
-
-  const { type, label, sub, activeTeam, duration } = anim;
+  const { type, label, sub } = evt;
+  const duration = DURATIONS[type] || 1000;
   const primary = activeTeam?.primary || '#C7FF3E';
 
   return (
-    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', borderRadius: 'inherit' }}>
-      <ColorSweep primary={primary} duration={duration} />
+    <div key={currentDrive.num} style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', borderRadius: 'inherit' }}>
+      <ColorSweep primary={primary} duration={duration} delay={EVENT_DELAY} />
 
-      {type === 'touchdown' && <EndZoneGlow primary={primary} />}
-      {type === 'touchdown' && <PulseRings color={primary} count={2} />}
-      {type === 'safety'    && <PulseRings color="#C0392B" count={2} />}
-      {type === 'fieldGoal' && <PulseRings color={primary} count={1} />}
-      {type === 'turnover'  && <GlitchLayer color={primary} />}
-      {type === 'bigPlay'   && <BigPlayStreak primary={primary} />}
-      {type === 'sack'      && <SackRing />}
+      {type === 'touchdown' && <EndZoneGlow primary={primary} delay={EVENT_DELAY} />}
+      {type === 'touchdown' && <PulseRings color={primary} count={2} delay={EVENT_DELAY} />}
+      {type === 'safety'    && <PulseRings color="#C0392B" count={2} delay={EVENT_DELAY} />}
+      {type === 'fieldGoal' && <PulseRings color={primary} count={1} delay={EVENT_DELAY} />}
+      {type === 'turnover'  && <GlitchLayer color={primary} delay={EVENT_DELAY} />}
+      {type === 'bigPlay'   && <BigPlayStreak primary={primary} delay={EVENT_DELAY} />}
+      {type === 'sack'      && <SackRing delay={EVENT_DELAY} />}
 
       {(type === 'touchdown' || type === 'fieldGoal' || type === 'safety') && (
-        <LogoFlash logo={activeTeam?.logo} primary={primary} duration={duration} />
+        <LogoFlash logo={activeTeam?.logo} primary={primary} duration={duration} delay={EVENT_DELAY} />
       )}
 
-      <Banner label={label} sub={sub} primary={primary} duration={duration} />
+      <Banner label={label} sub={sub} primary={primary} duration={duration} delay={EVENT_DELAY} />
     </div>
   );
 }

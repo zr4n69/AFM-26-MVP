@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { createLeague } from '@engine/data/factories.js';
 import { updateStrategy, setDepthChart, releasePlayer, signPlayer, extendContract, scheduleTrainingSession, resolveTrainingSession, scoutProspectGroup, draftProspect, processUndraftedFreeAgents, proposeTrade, completeTrade, castHallOfFameVotes, generatePlayoffBracket, advanceSeasonPhase } from '@engine/data/actions.js';
 import { simulateWeek, generatePlayoffSeeds, simulatePlayoffRound } from '@engine/simulation/engine.js';
@@ -8,11 +8,28 @@ import { makeContractOffer, resolvePendingOffers, runFreeAgencyPeriod } from '@e
 import { calculateTradeValue, evaluateCpuTradeResponse } from '@engine/simulation/trade-value.js';
 import { createRng } from '@engine/data/random.js';
 import { bridgeLeague } from '../data/bridge.js';
+import { LeagueContext } from './league-context.js';
 
-const LeagueContext = createContext(null);
+function setDraftStatus(league, status) {
+  if (league.draft) league.draft.status = status;
+}
+
+function markFreeAgencyComplete(league) {
+  league.offseasonEvents = { ...(league.offseasonEvents || {}), freeAgencyComplete: true };
+}
+
+function incrementCoach(league, key, amount = 1) {
+  league.coach ||= {};
+  league.coach.frontOffice ||= { draftSelections: 0, firstRoundPicks: 0, tradesCompleted: 0, freeAgentSignings: 0 };
+  league.coach.frontOffice[key] = (league.coach.frontOffice[key] || 0) + amount;
+}
+
+function updateCoachProfile(league, patch) {
+  league.coach = { ...(league.coach || {}), ...patch };
+}
 
 export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-mvp', playerTeamIndex = 0 }) {
-  const [league, setLeague] = useState(() =>
+  const [league] = useState(() =>
     initialLeague ?? createLeague(seed, { playerTeamIndex, playerPrestige: 4.25 })
   );
   const [rev, setRev] = useState(0);
@@ -20,6 +37,10 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
   const bump = useCallback(() => setRev(r => r + 1), []);
 
   const actions = useMemo(() => ({
+    updateCoachIdentity(patch) {
+      updateCoachProfile(league, patch);
+      bump();
+    },
     updateStrategy(teamId, patch) {
       updateStrategy(league, teamId, patch);
       bump();
@@ -34,6 +55,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     },
     signPlayer(teamId, player) {
       signPlayer(league, teamId, player);
+      if (league.teams.find(t => t.id === teamId)?.isPlayerControlled) incrementCoach(league, 'freeAgentSignings');
       bump();
     },
     extendContract(teamId, playerId, terms) {
@@ -89,6 +111,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
         const team = league.teams.find(t => t.id === pick.currentTeamId);
         if (!team) return null;
         const player = convertProspectToPlayer(league, result.prospect, team.id, rng);
+        if (team.isPlayerControlled) { incrementCoach(league, 'draftSelections'); if (pick.round === 1) incrementCoach(league, 'firstRoundPicks'); }
         if (team.roster.length < 55) {
           team.roster.push(player);
         } else {
@@ -113,6 +136,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
         const team = league.teams.find(t => t.id === pick.currentTeamId);
         if (!team) return null;
         const player = convertProspectToPlayer(league, result.prospect, team.id, rng);
+        if (team.isPlayerControlled) { incrementCoach(league, 'draftSelections'); if (pick.round === 1) incrementCoach(league, 'firstRoundPicks'); }
         if (team.roster.length < 55) {
           team.roster.push(player);
         } else {
@@ -126,13 +150,17 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
         return null;
       }
     },
+    startDraft() {
+      setDraftStatus(league, 'in_progress');
+      bump();
+    },
     finalizeDraft() {
       try {
         processUndraftedFreeAgents(league);
-        league.draft.status = 'completed';
+        setDraftStatus(league, 'completed');
       } catch (e) {
         console.error('[finalizeDraft]', e);
-        league.draft.status = 'completed';
+        setDraftStatus(league, 'completed');
       }
       bump();
     },
@@ -169,6 +197,9 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     completeTrade(tradeId) {
       try {
         const result = completeTrade(league, tradeId);
+        const trade = league.trades?.find(t => t.id === tradeId);
+        const userId = league.teams.find(t => t.isPlayerControlled)?.id;
+        if (result && trade && (trade.fromTeamId === userId || trade.toTeamId === userId)) incrementCoach(league, 'tradesCompleted');
         bump();
         return result;
       } catch (e) {
@@ -246,7 +277,7 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
       try {
         const pending = resolvePendingOffers(league, { seed: `player-fa-${league.seed}-${league.currentSeason}` });
         const cpu = runFreeAgencyPeriod(league, { seed: `cpu-fa-${league.seed}-${league.currentSeason}` });
-        league.offseasonEvents = { ...(league.offseasonEvents || {}), freeAgencyComplete: true };
+        markFreeAgencyComplete(league);
         bump();
         return { pending, cpu };
       } catch (e) {
@@ -298,17 +329,11 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     },
   }), [league, bump]);
 
-  const bridged = useMemo(() => bridgeLeague(league), [league, rev]);
+  const bridged = useMemo(() => ({ ...bridgeLeague(league), revision: rev }), [league, rev]);
 
   return (
     <LeagueContext.Provider value={{ ...bridged, actions }}>
       {children}
     </LeagueContext.Provider>
   );
-}
-
-export function useLeague() {
-  const ctx = useContext(LeagueContext);
-  if (!ctx) throw new Error('useLeague must be used within LeagueProvider');
-  return ctx;
 }

@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
+import { useLeague } from '../context/league-context.js';
 import { Topbar, ColorBlock, OvrPill, Stars } from '../components/Chrome.jsx';
 import { bridgeProspect } from '../data/bridge.js';
-import { formatM } from '../components/Chrome.jsx';
+import { formatM } from '../components/formatting.js';
+import { GameIcon } from '../components/GameIcon.jsx';
+import { PlayerDossier } from '../components/PlayerDossier.jsx';
+
+const EMPTY_PICKS = [];
 
 export function ScreenDraft({ onNav }) {
   const { userTeam, teams, draft, draftClass, scouting, season, phase, actions, _engine } = useLeague();
@@ -16,9 +20,10 @@ export function ScreenDraft({ onNav }) {
   const [draftLog, setDraftLog] = useState([]);
   const [currentPickIdx, setCurrentPickIdx] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  const [profileProspect, setProfileProspect] = useState(null);
   const timerRef = useRef(null);
 
-  const picks = draft?.picks || [];
+  const picks = draft?.picks ?? EMPTY_PICKS;
   const userPicks = picks.filter(p => p.currentTeamId === teamId);
   const revealed = scouting?.revealedGroupsByTeamId?.[teamId] || {};
   const freeAgencyComplete = !!league?.offseasonEvents?.freeAgencyComplete;
@@ -34,11 +39,11 @@ export function ScreenDraft({ onNav }) {
 
   const startDraft = useCallback(() => {
     setMode('live');
-    if (league.draft) league.draft.status = 'in_progress';
+    actions.startDraft();
     setCurrentPickIdx(Math.max(0, nextPickIdx));
     setDraftLog([]);
     setIsRunning(true);
-  }, [league, nextPickIdx]);
+  }, [actions, nextPickIdx]);
 
   // Run CPU picks automatically
   useEffect(() => {
@@ -46,19 +51,19 @@ export function ScreenDraft({ onNav }) {
 
     const idx = picks.findIndex(p => !p.prospectId);
     if (idx === -1) {
-      // Draft complete
-      setIsRunning(false);
-      actions.finalizeDraft();
-      setMode('results');
-      return;
+      timerRef.current = setTimeout(() => {
+        setIsRunning(false);
+        actions.finalizeDraft();
+        setMode('results');
+      }, 0);
+      return () => clearTimeout(timerRef.current);
     }
 
-    setCurrentPickIdx(idx);
     const pick = picks[idx];
 
-    // If it's the user's pick, pause
+    // A user-owned pick pauses naturally because no CPU timer is scheduled.
+    // Drafting changes nextPickIdx, which resumes this effect for the following pick.
     if (pick.currentTeamId === teamId) {
-      setIsRunning(false);
       return;
     }
 
@@ -75,11 +80,12 @@ export function ScreenDraft({ onNav }) {
           position: result.prospect.position,
           rating: result.player.overall,
         }]);
+        setCurrentPickIdx(idx + 1);
       }
     }, 400);
 
     return () => clearTimeout(timerRef.current);
-  }, [isRunning, mode, picks, teamId, actions, currentPickIdx]);
+  }, [isRunning, mode, picks, teamId, actions, nextPickIdx]);
 
   function userDraftPlayer(prospectId) {
     try {
@@ -172,12 +178,12 @@ export function ScreenDraft({ onNav }) {
     return (
       <>
         <Topbar crumb="Front Office / Draft" title={`${season + 1} AFL Draft`} actions={
-          <button className="btn accent" onClick={() => setShowBoard(true)}>📋 My Draft Board</button>
+          <button className="btn accent" onClick={() => setShowBoard(true)}><GameIcon name="draftBoard" size={14} /> My Draft Board</button>
         } />
         <div className="page">
           <div className="card">
             <div className="card-b" style={{ padding: 40, textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
+              <div className="empty-state-icon"><GameIcon name="draftBoard" size={40} /></div>
               <h2 style={{ marginBottom: 8 }}>Draft Available During Offseason</h2>
               <p className="muted" style={{ maxWidth: 400, margin: '0 auto' }}>
                 The AFL Draft is a special offseason event. Complete the current season to enter the draft.
@@ -185,7 +191,7 @@ export function ScreenDraft({ onNav }) {
               </p>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
                 <button className="btn" onClick={() => onNav('scouting')}>Go to Scouting →</button>
-                <button className="btn accent" onClick={() => setShowBoard(true)}>📋 My Draft Board</button>
+                <button className="btn accent" onClick={() => setShowBoard(true)}><GameIcon name="draftBoard" size={14} /> My Draft Board</button>
               </div>
             </div>
           </div>
@@ -199,7 +205,7 @@ export function ScreenDraft({ onNav }) {
       <Topbar crumb="Front Office / Draft" title={`${season + 1} AFL Draft`} actions={
         <>
           <button className={`btn${showBoard ? ' accent' : ''}`} onClick={() => setShowBoard(b => !b)}>
-            📋 {showBoard ? 'Hide Board' : 'My Board'}
+            <GameIcon name="draftBoard" size={14} /> {showBoard ? 'Hide Board' : 'My Board'}
           </button>
           {!showBoard && mode === 'predraft' && <button className="btn primary" onClick={startDraft}>Start Draft</button>}
           {!showBoard && mode === 'live' && isUserOnClock && <button className="btn primary" onClick={autoPick}>Auto-Pick</button>}
@@ -277,7 +283,7 @@ export function ScreenDraft({ onNav }) {
                     <thead><tr><th className="num">Rk</th><th>Prospect</th><th>Pos</th><th>Range</th><th className="num">OVR</th></tr></thead>
                     <tbody>
                       {available.slice(0, 20).map(p => (
-                        <tr key={p.id}>
+                        <tr key={p.id} className="clickable-row" onClick={() => setProfileProspect(p)}>
                           <td className="num mono">{p.projRank}</td>
                           <td><strong>{p.name}</strong></td>
                           <td className="mono">{p.pos}</td>
@@ -362,16 +368,16 @@ export function ScreenDraft({ onNav }) {
                   </thead>
                   <tbody>
                     {available.slice(0, 40).map(p => (
-                      <tr key={p.id}>
+                      <tr key={p.id} className="clickable-row" onClick={() => setProfileProspect(p)}>
                         <td className="num mono">{p.projRank}</td>
                         <td><strong>{p.name}</strong></td>
                         <td className="mono">{p.pos}</td>
                         <td>{p.age}</td>
                         <td className="mono">{p.ratingRange[0]}-{p.ratingRange[1]}</td>
                         <td className="num">{p.ovr != null ? <OvrPill ovr={p.ovr} /> : <span className="muted">?</span>}</td>
-                        <td>{p.potential != null ? <Stars n={p.potential} /> : <span className="muted">—</span>}</td>
+                        <td>{p.potential != null ? <Stars n={p.potential} /> : <span className="muted">?/5</span>}</td>
                         {isUserOnClock && (
-                          <td><button className="btn primary" style={{ padding: '4px 12px', fontSize: 11 }} onClick={() => userDraftPlayer(p.id)}>Draft</button></td>
+                          <td><button className="btn primary" style={{ padding: '4px 12px', fontSize: 11 }} onClick={e => { e.stopPropagation(); userDraftPlayer(p.id); }}>Draft</button></td>
                         )}
                       </tr>
                     ))}
@@ -409,6 +415,7 @@ export function ScreenDraft({ onNav }) {
             </div>
           </div>
         )}
+        {profileProspect && <PlayerDossier player={profileProspect} team={userTeam} prospect onClose={() => setProfileProspect(null)} primaryLabel={isUserOnClock ? 'Draft player' : 'Add to board'} primaryAction={() => { if (isUserOnClock) userDraftPlayer(profileProspect.id); else { const board = userTeam._engine?.mockDraftBoard || []; if (!board.includes(profileProspect.id)) actions.updateMockDraftBoard([...board, profileProspect.id]); } setProfileProspect(null); }} />}
       </div>
     </>
   );
@@ -464,9 +471,9 @@ function MockDraftBoard({ draftClass, revealed, board, onUpdate }) {
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>
-                  {p.pos} · {p.ratingRange[0]}–{p.ratingRange[1]}
-                  {p.ovr != null ? ` · OVR ${p.ovr}` : ''}
+                <div className="draft-board-meta">
+                  <span>{p.pos} · {p.ratingRange[0]}–{p.ratingRange[1]}</span>
+                  {p.ovr != null && <span>OVR <OvrPill ovr={p.ovr} className="ovr-compact" /></span>}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 4 }}>

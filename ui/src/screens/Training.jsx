@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
+import { useLeague } from '../context/league-context.js';
 import { Topbar, Avatar, OvrPill, Stars } from '../components/Chrome.jsx';
 import { isTrainingWindowOpen } from '../data/bridge.js';
 
-export function ScreenTraining({ onNav }) {
+export function ScreenTraining() {
   const { userTeam, actions, _engine } = useLeague();
   const league = _engine;
   const windowInfo = isTrainingWindowOpen(league);
@@ -102,7 +102,7 @@ export function ScreenTraining({ onNav }) {
                 <span>Training Camp</span>
                 <span className="muted">{campSessions.length > 0 ? `${campSessions.filter(s => s.completed).length} session(s) used` : 'Preseason'}</span>
               </div>
-              {regWindows.map((w, i) => {
+              {regWindows.map((w) => {
                 const used = w.sessions.some(s => s.completed);
                 const isCurrent = windowInfo.open && windowInfo.afterWeek === w.afterWeek;
                 return (

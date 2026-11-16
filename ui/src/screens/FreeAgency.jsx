@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, OvrPill, Stars, Avatar, formatM } from '../components/Chrome.jsx';
+import { useLeague } from '../context/league-context.js';
+import { Topbar, OvrPill, Stars, Avatar } from '../components/Chrome.jsx';
+import { formatM } from '../components/formatting.js';
 import { bridgeFreeAgent } from '../data/bridge.js';
 import { estimateMarketSalary } from '@engine/simulation/free-agency.js';
+import { PlayerDossier } from '../components/PlayerDossier.jsx';
 
 const OFF_POS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C'];
 const DEF_POS = ['EDGE', 'DL', 'LB', 'CB', 'S'];
@@ -40,7 +42,7 @@ function statLine(p) {
   return null;
 }
 
-export function ScreenFreeAgency({ onNav }) {
+export function ScreenFreeAgency() {
   const { userTeam, freeAgents, phase, pendingOffers, offseasonEvents, actions } = useLeague();
   const teamId = userTeam.id;
 
@@ -51,6 +53,11 @@ export function ScreenFreeAgency({ onNav }) {
   const [lastResult, setLastResult] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
   const [showRelease, setShowRelease] = useState(false);
+  const [profilePlayer, setProfilePlayer] = useState(null);
+
+  function openOffer(player) {
+    setErrorMsg(null); setOfferTarget(player); setOfferSalary(Math.round(player.marketValue * 10) / 10); setOfferYears(Math.min(4, Math.max(1, 5 - Math.floor(player.age / 8))));
+  }
 
   const bridgedFAs = (freeAgents || [])
     .map(p => {
@@ -129,7 +136,7 @@ export function ScreenFreeAgency({ onNav }) {
           </div>
         )}
 
-        <div className="grid grid-4" style={{ marginBottom: 18 }}>
+        <div className="grid grid-4 free-agency-summary" style={{ marginBottom: 18 }}>
           <div className="stat-tile">
             <div className="label">Cap Space</div>
             <div className="value">{formatM(userTeam.capSpace)}</div>
@@ -222,7 +229,7 @@ export function ScreenFreeAgency({ onNav }) {
                     <span className="chip pos" style={{ fontSize: 10, minWidth: 64, textAlign: 'center' }}>ACCEPTED</span>
                     <div style={{ flex: 1 }}>
                       <strong>{player.firstName} {player.lastName}</strong>
-                      <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{player.position} · OVR {player.overall}</span>
+                      <span className="offer-result-meta">{player.position}<OvrPill ovr={player.overall} /></span>
                     </div>
                     <span className="mono" style={{ fontSize: 12 }}>{formatM((s.salary || 0) / 1_000_000)}/yr · {s.years}yr</span>
                   </div>
@@ -235,7 +242,7 @@ export function ScreenFreeAgency({ onNav }) {
                     <span className="chip" style={{ fontSize: 10, minWidth: 64, textAlign: 'center', background: 'var(--neg)', color: 'white' }}>REJECTED</span>
                     <div style={{ flex: 1 }}>
                       <strong>{player.firstName} {player.lastName}</strong>
-                      <span className="muted" style={{ marginLeft: 8, fontSize: 12 }}>{player.position} · OVR {player.overall}</span>
+                      <span className="offer-result-meta">{player.position}<OvrPill ovr={player.overall} /></span>
                     </div>
                     <span className="muted" style={{ fontSize: 12 }}>{r.reason || 'Chose another offer'}</span>
                   </div>
@@ -250,15 +257,15 @@ export function ScreenFreeAgency({ onNav }) {
 
         <div className="card">
           <div className="card-h">
-            <div className="tabs" style={{ border: 'none', margin: 0 }}>
+            <div className="tabs free-agency-filters" style={{ border: 'none', margin: 0 }}>
               {['All', 'Offense', 'Defense'].map(f => (
                 <div key={f} className={`tab ${filter === f ? 'active' : ''}`}
                   onClick={() => setFilter(f)} style={{ borderBottom: 'none', paddingBottom: 8 }}>{f}</div>
               ))}
             </div>
           </div>
-          <div className="card-b tight">
-            <table className="tbl">
+          <div className="card-b tight free-agency-market">
+            <table className="tbl free-agency-desktop-table">
               <thead>
                 <tr>
                   <th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th>
@@ -269,7 +276,7 @@ export function ScreenFreeAgency({ onNav }) {
                 {filtered.slice(0, 50).map(p => {
                     const stats = statLine(p);
                     return (
-                    <tr key={p.id}>
+                    <tr key={p.id} className="clickable-row" onClick={() => setProfilePlayer(p)}>
                       <td><strong>{p.name}</strong></td>
                       <td className="mono"><strong>{p.pos}</strong></td>
                       <td className="num">{p.age}</td>
@@ -280,7 +287,7 @@ export function ScreenFreeAgency({ onNav }) {
                       <td>
                         <button className="btn" style={{ padding: '4px 12px', fontSize: 11 }}
                           disabled={rosterFull}
-                          onClick={() => { setErrorMsg(null); setOfferTarget(p); setOfferSalary(Math.round(p.marketValue * 10) / 10); setOfferYears(Math.min(4, Math.max(1, 5 - Math.floor(p.age / 8)))); }}>
+                          onClick={e => { e.stopPropagation(); openOffer(p); }}>
                           {rosterFull ? 'Full' : 'Offer'}
                         </button>
                       </td>
@@ -289,14 +296,42 @@ export function ScreenFreeAgency({ onNav }) {
                 })}
               </tbody>
             </table>
+
+            <div className="free-agency-mobile-list">
+              {filtered.slice(0, 50).map(p => {
+                const stats = statLine(p);
+                return (
+                  <article className="free-agent-mobile-card" key={p.id}>
+                    <div className="free-agent-mobile-main" role="button" tabIndex="0" onClick={() => setProfilePlayer(p)}>
+                      <Avatar player={p} size={44} />
+                      <div className="free-agent-mobile-identity">
+                        <strong>{p.name}</strong>
+                        <small>{p.pos} · Age {p.age}</small>
+                      </div>
+                      <div className="free-agent-mobile-overall"><small>OVR</small><OvrPill ovr={p.ovr} /></div>
+                    </div>
+                    <div className="free-agent-mobile-details">
+                      <span className="free-agent-mobile-potential"><small>Potential</small><Stars n={p.potential} /></span>
+                      <span><small>Est. value</small><b>{formatM(p.marketValue)}/yr</b></span>
+                      {stats && <span className="free-agent-mobile-stats"><small>Career</small>{stats}</span>}
+                      <button className="btn sm"
+                        disabled={rosterFull}
+                        onClick={() => openOffer(p)}>
+                        {rosterFull ? 'Full' : 'Offer'}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Offer modal */}
         {offerTarget && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.45)', display: 'grid', placeItems: 'center' }}
+          <div className="free-agency-modal-backdrop"
             onClick={() => setOfferTarget(null)}>
-            <div className="card" style={{ width: 400, animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
+            <div className="card free-agency-offer-modal" onClick={e => e.stopPropagation()}>
               <div className="card-h"><h2>Offer to {offerTarget.name}</h2></div>
               <div className="card-b">
                 <div style={{ display: 'flex', gap: 12, marginBottom: 12, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -319,7 +354,7 @@ export function ScreenFreeAgency({ onNav }) {
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Contract Length</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div className="free-agency-year-options">
                     {[1, 2, 3, 4].map(y => (
                       <span key={y} className={`chip ${offerYears === y ? 'pos' : 'outline'}`}
                         style={{ cursor: 'pointer', padding: '4px 12px' }}
@@ -347,6 +382,8 @@ export function ScreenFreeAgency({ onNav }) {
             </div>
           </div>
         )}
+
+        {profilePlayer && <PlayerDossier player={profilePlayer} team={userTeam} onClose={() => setProfilePlayer(null)} primaryLabel="Make offer" primaryAction={() => { const player = profilePlayer; setProfilePlayer(null); openOffer(player); }} trackingStartSeason={profilePlayer._engine?.achievementTrackingStartSeason} />}
 
         <div className="grid grid-2" style={{ marginTop: 14 }}>
           <div className="card">

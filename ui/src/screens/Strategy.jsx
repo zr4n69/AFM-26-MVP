@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
+import { useState } from 'react';
+import { useLeague } from '../context/league-context.js';
 import { Topbar } from '../components/Chrome.jsx';
 import { OFFENSIVE_STARTERS, DEFENSIVE_STARTERS } from '@engine/data/constants.js';
 
@@ -30,21 +30,16 @@ const TENDENCY_DEFS = [
 
 export function ScreenStrategy() {
   const { userTeam, actions } = useLeague();
-  const team = userTeam;
-  if (!team) return null;
+  if (!userTeam) return null;
+  return <StrategyEditor key={userTeam.id} team={userTeam} actions={actions} />;
+}
 
+function StrategyEditor({ team, actions }) {
   const strat = team.strategy || {};
   const [off, setOff] = useState(strat.offensiveSystem || 'westCoast');
   const [def, setDef] = useState(strat.defensiveSystem || 'fourThreeZone');
   const [tendencies, setTendencies] = useState({ ...strat.tendencies });
   const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    setOff(strat.offensiveSystem || 'westCoast');
-    setDef(strat.defensiveSystem || 'fourThreeZone');
-    setTendencies({ ...strat.tendencies });
-    setDirty(false);
-  }, [team.id]);
 
   const setT = (key, val) => {
     setTendencies(prev => ({ ...prev, [key]: val }));

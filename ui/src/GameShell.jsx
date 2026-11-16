@@ -1,23 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useLeague } from './context/LeagueContext.jsx';
-import { Sidebar, ErrorBoundary } from './components/Chrome.jsx';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import { useLeague } from './context/league-context.js';
+import { Sidebar, ErrorBoundary, CoachPortrait } from './components/Chrome.jsx';
+import { CoachDossier } from './components/CoachDossier.jsx';
 import { ScreenDashboard } from './screens/Dashboard.jsx';
-import { ScreenRoster } from './screens/Roster.jsx';
-import { ScreenDepthChart } from './screens/DepthChart.jsx';
-import { ScreenStrategy } from './screens/Strategy.jsx';
-import { ScreenContracts } from './screens/Contracts.jsx';
-import { ScreenGameWeek } from './screens/GameWeek.jsx';
-import { ScreenStandings } from './screens/Standings.jsx';
-import { ScreenLeaders } from './screens/Leaders.jsx';
-import { ScreenTraining } from './screens/Training.jsx';
-import { ScreenScouting } from './screens/Scouting.jsx';
-import { ScreenDraft } from './screens/Draft.jsx';
-import { ScreenFreeAgency } from './screens/FreeAgency.jsx';
-import { ScreenTrades } from './screens/Trades.jsx';
-import { ScreenAwards } from './screens/Awards.jsx';
-import { ScreenHallOfFame } from './screens/HallOfFame.jsx';
 import { Chyron } from './components/Chyron.jsx';
 import { saveToSlot } from './save-slots.js';
+
+function lazyScreen(loader, exportName) {
+  return lazy(() => loader().then(module => ({ default: module[exportName] })));
+}
+
+const ScreenRoster = lazyScreen(() => import('./screens/Roster.jsx'), 'ScreenRoster');
+const ScreenDepthChart = lazyScreen(() => import('./screens/DepthChart.jsx'), 'ScreenDepthChart');
+const ScreenStrategy = lazyScreen(() => import('./screens/Strategy.jsx'), 'ScreenStrategy');
+const ScreenContracts = lazyScreen(() => import('./screens/Contracts.jsx'), 'ScreenContracts');
+const ScreenGameWeek = lazyScreen(() => import('./screens/GameWeek.jsx'), 'ScreenGameWeek');
+const ScreenStandings = lazyScreen(() => import('./screens/Standings.jsx'), 'ScreenStandings');
+const ScreenLeaders = lazyScreen(() => import('./screens/Leaders.jsx'), 'ScreenLeaders');
+const ScreenTraining = lazyScreen(() => import('./screens/Training.jsx'), 'ScreenTraining');
+const ScreenScouting = lazyScreen(() => import('./screens/Scouting.jsx'), 'ScreenScouting');
+const ScreenDraft = lazyScreen(() => import('./screens/Draft.jsx'), 'ScreenDraft');
+const ScreenFreeAgency = lazyScreen(() => import('./screens/FreeAgency.jsx'), 'ScreenFreeAgency');
+const ScreenTrades = lazyScreen(() => import('./screens/Trades.jsx'), 'ScreenTrades');
+const ScreenAwards = lazyScreen(() => import('./screens/Awards.jsx'), 'ScreenAwards');
+const ScreenHallOfFame = lazyScreen(() => import('./screens/HallOfFame.jsx'), 'ScreenHallOfFame');
 
 const SCREENS = {
   dashboard: ScreenDashboard,
@@ -39,12 +45,23 @@ const SCREENS = {
 
 // Bottom nav tabs (visible on mobile)
 const BOTTOM_TABS = [
-  { id: 'dashboard', label: 'Home', icon: '⌂' },
-  { id: 'roster', label: 'Roster', icon: '\u{1F464}' },
-  { id: 'gameweek', label: 'Play', icon: '▶' },
-  { id: 'standings', label: 'League', icon: '\u{1F3C6}' },
-  { id: '_more', label: 'More', icon: '≡' },
+  { id: 'dashboard', label: 'Home', icon: 'home' },
+  { id: 'roster', label: 'Roster', icon: 'roster' },
+  { id: 'gameweek', label: 'Play', icon: 'game' },
+  { id: 'standings', label: 'League', icon: 'trophy' },
+  { id: '_more', label: 'More', icon: 'menu' },
 ];
+
+function NavIcon({ name }) {
+  const paths = {
+    home: <><path d="M3 10.5 10 4l7 6.5" /><path d="M5.5 9v7h9V9M9 16v-4h2v4" /></>,
+    roster: <><circle cx="10" cy="7" r="3" /><path d="M4.5 16c.8-3 2.6-4.5 5.5-4.5s4.7 1.5 5.5 4.5" /></>,
+    game: <><path d="M5 4.5h10v11H5z" /><path d="M8 7.5v5l4-2.5z" /></>,
+    trophy: <><path d="M7 4h6v3.5c0 3-1.2 4.5-3 4.5s-3-1.5-3-4.5z" /><path d="M7 6H4.5c0 2.5 1 3.8 3 4M13 6h2.5c0 2.5-1 3.8-3 4M10 12v3M7 16h6" /></>,
+    menu: <><path d="M4 6h12M4 10h12M4 14h12" /></>,
+  };
+  return <svg viewBox="0 0 20 20" aria-hidden="true">{paths[name]}</svg>;
+}
 
 // All screens grouped for the "More" menu
 const MENU_SECTIONS = [
@@ -106,7 +123,7 @@ function MobileBottomNav({ active, onNav, onMore }) {
             className={`mobile-nav-item ${active === tab.id ? 'active' : ''}`}
             onClick={() => tab.id === '_more' ? onMore() : onNav(tab.id)}
           >
-            <div className="nav-icon">{tab.icon}</div>
+            <div className="nav-icon"><NavIcon name={tab.icon} /></div>
             <span>{tab.label}</span>
           </div>
         ))}
@@ -115,13 +132,13 @@ function MobileBottomNav({ active, onNav, onMore }) {
   );
 }
 
-function MobileMenuOverlay({ open, active, onNav, onClose, onSave, onExit, team, season, week }) {
+function MobileMenuOverlay({ open, active, onNav, onClose, onSave, onExit, onCoachOpen, coach, team, season, week }) {
   if (!open) return null;
   return (
     <div className="mobile-menu-overlay open" onClick={onClose}>
       <div className="mobile-menu-panel" onClick={e => e.stopPropagation()}>
         <div className="menu-header">
-          <h3>{team?.city} {team?.name}</h3>
+          <button type="button" className="mobile-coach-button" onClick={() => { onClose(); onCoachOpen(); }}><CoachPortrait team={team} coach={coach} size={44} /><span><small>{coach?.title}</small><strong>{coach?.firstName} {coach?.lastName}</strong></span></button>
           <button className="btn sm" onClick={onClose}>&times;</button>
         </div>
         <div style={{ padding: '8px 16px', fontSize: 12, color: 'var(--ink-3)', display: 'flex', gap: 12 }}>
@@ -158,12 +175,19 @@ function MobileMenuOverlay({ open, active, onNav, onClose, onSave, onExit, team,
 export function GameShell({ slotIndex, onExitToMenu }) {
   const [activeScreen, setActiveScreen] = useState('dashboard');
   const ctx = useLeague();
-  const { userTeam, season, week, actions } = ctx;
+  const { userTeam, coach, season, week, actions } = ctx;
+  const [presentationLock, setPresentationLock] = useState(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showExitDialog, setShowExitDialog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [lastSaved, setLastSaved] = useState(null);
   const [saveError, setSaveError] = useState(null);
+  const [showCoachDossier, setShowCoachDossier] = useState(false);
+  const handlePresentationChange = useCallback(snapshot => setPresentationLock(snapshot), []);
+
+  const presentedTeam = presentationLock?.team || userTeam;
+  const presentedSeason = presentationLock?.season ?? season;
+  const presentedWeek = presentationLock?.week ?? week;
 
   const save = useCallback(() => {
     try {
@@ -193,17 +217,21 @@ export function GameShell({ slotIndex, onExitToMenu }) {
       <Sidebar
         active={activeScreen}
         onNav={setActiveScreen}
-        team={userTeam}
-        season={season}
-        week={week}
+        team={presentedTeam}
+        coach={coach}
+        onCoachOpen={() => setShowCoachDossier(true)}
+        season={presentedSeason}
+        week={presentedWeek}
         lastSaved={lastSaved}
         onSave={() => setShowSaveDialog(true)}
         onExit={() => setShowExitDialog(true)}
       />
       <div className="main">
-        <ErrorBoundary key={activeScreen}>
-          {ScreenComponent && <ScreenComponent onNav={setActiveScreen} />}
-        </ErrorBoundary>
+        <Suspense fallback={<div className="screen-loading">Opening personnel file…</div>}>
+          <ErrorBoundary key={activeScreen}>
+            {ScreenComponent && <ScreenComponent onNav={setActiveScreen} onPresentationChange={handlePresentationChange} />}
+          </ErrorBoundary>
+        </Suspense>
       </div>
 
       {/* Mobile bottom navigation */}
@@ -221,13 +249,17 @@ export function GameShell({ slotIndex, onExitToMenu }) {
         onClose={() => setShowMobileMenu(false)}
         onSave={save}
         onExit={onExitToMenu}
-        team={userTeam}
-        season={season}
-        week={week}
+        team={presentedTeam}
+        coach={coach}
+        onCoachOpen={() => setShowCoachDossier(true)}
+        season={presentedSeason}
+        week={presentedWeek}
       />
 
       {/* Broadcast chyron ticker */}
-      <Chyron season={season} week={week} />
+      <Chyron season={presentedSeason} week={presentedWeek} />
+
+      {showCoachDossier && <CoachDossier onClose={() => setShowCoachDossier(false)} />}
 
       {saveError && (
         <Dialog

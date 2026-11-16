@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, ColorBlock, OvrPill, Stars, TradeChip, formatM } from '../components/Chrome.jsx';
+import { useLeague } from '../context/league-context.js';
+import { Topbar, ColorBlock, OvrPill, Stars, TradeChip } from '../components/Chrome.jsx';
+import { formatM } from '../components/formatting.js';
 import { isTradeWindowOpen } from '../data/bridge.js';
+import { PlayerDossier } from '../components/PlayerDossier.jsx';
 
 function tradeStatLine(p) {
   const s = p.careerStats || {};
@@ -34,7 +36,7 @@ function tradeStatLine(p) {
   return null;
 }
 
-export function ScreenTrades({ onNav }) {
+export function ScreenTrades() {
   const { userTeam, teams, trades, cpuTrades, draft, actions, _engine } = useLeague();
   const league = _engine;
   const teamId = userTeam.id;
@@ -49,6 +51,7 @@ export function ScreenTrades({ onNav }) {
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerPosFilter, setPickerPosFilter] = useState('');
   const [evaluation, setEvaluation] = useState(null);
+  const [profile, setProfile] = useState(null);
 
   const otherTeams = teams.filter(t => t.id !== teamId);
   const targetTeam = teams.find(t => t.id === targetTeamId);
@@ -173,7 +176,7 @@ export function ScreenTrades({ onNav }) {
                   <div style={{ border: '1px dashed var(--line)', borderRadius: 6, padding: 10, minHeight: 160 }}>
                     {givePlayers.map(id => {
                       const p = findPlayer(userTeam, id);
-                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={`OVR ${p.ovr} · Age ${p.age} · ${'★'.repeat(p.potential || 0)}`} onRemove={() => setGivePlayers(givePlayers.filter(x => x !== id))} /> : null;
+                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={<span className="trade-player-meta"><OvrPill ovr={p.ovr} className="ovr-compact" /><span>Age {p.age} · {'★'.repeat(p.potential || 0)}</span></span>} onRemove={() => setGivePlayers(givePlayers.filter(x => x !== id))} /> : null;
                     })}
                     {givePicks.map(id => {
                       const pk = findPick(id);
@@ -192,7 +195,7 @@ export function ScreenTrades({ onNav }) {
                   <div style={{ border: '1px dashed var(--line)', borderRadius: 6, padding: 10, minHeight: 160 }}>
                     {getPlayers.map(id => {
                       const p = findPlayer(targetTeam, id);
-                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={`OVR ${p.ovr} · Age ${p.age} · ${'★'.repeat(p.potential || 0)}`} highlight onRemove={() => setGetPlayers(getPlayers.filter(x => x !== id))} /> : null;
+                      return p ? <TradeChip key={id} name={`${p.pos} ${p.name}`} detail={<span className="trade-player-meta"><OvrPill ovr={p.ovr} className="ovr-compact" /><span>Age {p.age} · {'★'.repeat(p.potential || 0)}</span></span>} highlight onRemove={() => setGetPlayers(getPlayers.filter(x => x !== id))} /> : null;
                     })}
                     {getPicks.map(id => {
                       const pk = findPick(id);
@@ -341,7 +344,7 @@ export function ScreenTrades({ onNav }) {
                       .filter(p => !pickerSearch || p.name.toLowerCase().includes(pickerSearch.toLowerCase()))
                       .sort((a, b) => b.ovr - a.ovr)
                       .map(p => (
-                        <tr key={p.id}>
+                        <tr key={p.id} className="clickable-row" onClick={() => setProfile({ player: p, team: showPlayerPicker === 'give' ? userTeam : targetTeam, side: showPlayerPicker })}>
                           <td><strong>{p.name}</strong></td>
                           <td className="mono">{p.pos}</td>
                           <td className="num">{p.age}</td>
@@ -350,7 +353,7 @@ export function ScreenTrades({ onNav }) {
                           <td className="num mono">{formatM(p.cap)}</td>
                           <td className="muted col-mobile-hide" style={{ fontSize: 11 }}>{tradeStatLine(p) || '—'}</td>
                           <td>
-                            <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }} onClick={() => {
+                            <button className="btn" style={{ padding: '3px 10px', fontSize: 11 }} onClick={e => { e.stopPropagation();
                               if (showPlayerPicker === 'give') setGivePlayers(prev => [...prev, p.id]);
                               else setGetPlayers(prev => [...prev, p.id]);
                             }}>+ Add</button>
@@ -383,6 +386,8 @@ export function ScreenTrades({ onNav }) {
             </div>
           </div>
         )}
+
+        {profile && <PlayerDossier player={profile.player} team={profile.team} onClose={() => setProfile(null)} primaryLabel="Add to trade" primaryAction={() => { if (profile.side === 'give') setGivePlayers(prev => prev.includes(profile.player.id) ? prev : [...prev, profile.player.id]); else setGetPlayers(prev => prev.includes(profile.player.id) ? prev : [...prev, profile.player.id]); setProfile(null); }} trackingStartSeason={profile.player._engine?.achievementTrackingStartSeason} />}
       </div>
     </>
   );

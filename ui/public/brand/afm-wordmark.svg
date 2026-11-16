@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 112" role="img" aria-labelledby="title">
+  <title id="title">AFM Franchise Football</title>
+  <g transform="translate(5 7) scale(.92)">
+    <path fill="#F1F0E8" stroke="#242A28" stroke-width="4" stroke-linejoin="round" d="M48 4 87 17v32c0 24-14 39-39 47C23 88 9 73 9 49V17z"/>
+    <path fill="#343C38" d="M48 7 83 19v30c0 21-12 34-35 42C25 83 13 70 13 49V19z"/>
+    <path fill="#B44F47" d="M13 19 48 7l35 12v11H13z"/>
+    <path fill="none" stroke="#F1F0E8" stroke-width="2" d="M22 30h52"/>
+    <text x="48" y="59" text-anchor="middle" fill="#F1F0E8" font-family="Arial Narrow,Arial,sans-serif" font-size="27" font-weight="900" letter-spacing="1">AFM</text>
+    <path fill="none" stroke="#C79E4B" stroke-width="2.5" stroke-linecap="round" d="M31 69h34"/>
+    <path fill="none" stroke="#C79E4B" stroke-width="2" stroke-linecap="round" d="M38 65v8M43 65v8M48 65v8M53 65v8M58 65v8"/>
+  </g>
+  <text x="108" y="65" fill="#242A28" font-family="Arial Narrow,Arial,sans-serif" font-size="66" font-weight="900" letter-spacing="4">AFM</text>
+  <text x="112" y="89" fill="#58615B" font-family="Arial Narrow,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="5">FRANCHISE FOOTBALL</text>
+</svg>

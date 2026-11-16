@@ -1,11 +1,93 @@
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, ColorBlock, OvrPill, Avatar, InjBadge, TRAIT_ICONS, formatM } from '../components/Chrome.jsx';
+import { useState } from 'react';
+import { useLeague } from '../context/league-context.js';
+import { Topbar, ColorBlock, OvrPill } from '../components/Chrome.jsx';
+import { formatM } from '../components/formatting.js';
+
+const OFFENSIVE_SYSTEMS = [
+  { id: 'westCoast', short: 'West Coast', note: 'Three-receiver personnel. Favors outside zone, mesh, stick, slants, flood, and screens.' },
+  { id: 'powerRun', short: 'Power Run', note: 'Two backs and two tight ends. Favors inside runs, power, counters, and play action.' },
+  { id: 'spreadRpo', short: 'Spread RPO', note: 'Three-receiver personnel. Favors outside zone, RPO glance, mesh, slants, screens, and QB option.' },
+  { id: 'verticalAirRaid', short: 'Vertical Air Raid', note: 'Four receivers and no starting tight end. Favors four verticals and draw concepts.' },
+  { id: 'balancedPro', short: 'Balanced Pro', note: 'Two receivers and one tight end. Mixes inside zone, counter, play action, stick, flood, and draw.' },
+];
+
+function nextMatchup(league, team, teams, week) {
+  const fallback = teams.find(candidate => candidate.id !== team.id) || team;
+  const scheduled = league?.schedule?.find(entry => entry.week === week);
+  const engineId = team?._engine?.id;
+  const game = scheduled?.games?.find(entry => entry.homeTeamId === engineId || entry.awayTeamId === engineId);
+  if (!game) return { opponent: fallback, venue: 'Matchup pending', isHome: true };
+  const isHome = game.homeTeamId === engineId;
+  const opponentId = isHome ? game.awayTeamId : game.homeTeamId;
+  return {
+    opponent: teams.find(candidate => candidate._engine?.id === opponentId) || fallback,
+    venue: isHome ? 'Home field' : 'On the road',
+    isHome,
+  };
+}
+
+function TacticalSketch({ system }) {
+  const routes = {
+    westCoast: ['M116 190C122 156 152 141 214 143', 'M618 190C612 150 576 125 520 124', 'M370 270c-54-2-96-20-124-54'],
+    powerRun: ['M370 270c-50-4-91-25-119-63', 'M116 190c8-34 26-54 58-62', 'M618 190c-4-30-20-49-49-58'],
+    spreadRpo: ['M370 270c62-3 107-27 132-73', 'M116 190c26-9 58-9 96 2', 'M618 190c-14-58-52-93-116-103'],
+    verticalAirRaid: ['M116 190C114 125 129 82 162 52', 'M618 190C620 124 605 80 572 48', 'M290 195c-6-58 6-101 38-130', 'M450 195c8-58-4-101-36-130'],
+    balancedPro: ['M116 190c20-42 54-66 102-72', 'M618 190c-18-46-54-73-106-81', 'M370 270c48-4 84-24 108-61'],
+  };
+  return (
+    <svg className="tactical-sketch" viewBox="0 0 720 330" role="img" aria-label="Offensive game plan sketch">
+      <defs>
+        <filter id="marker-soft"><feGaussianBlur stdDeviation="0.35" /></filter>
+        <marker id="route-arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0 0 6 3 0 6" className="route-arrowhead" /></marker>
+      </defs>
+      <path className="board-yard" d="M32 52H688M32 112H688M32 172H688M32 232H688M32 292H688" />
+      <path className="board-hash" d="M170 42v20m0 40v20m0 40v20m0 40v20m0 40v20M550 42v20m0 40v20m0 40v20m0 40v20m0 40v20" />
+      <g className="offense-markers">
+        {[250, 290, 330, 370, 410, 450, 490].map(x => <circle key={x} cx={x} cy="205" r="10" />)}
+        <circle cx="370" cy="247" r="11" /><circle cx="370" cy="282" r="10" />
+        <circle cx="116" cy="202" r="10" /><circle cx="618" cy="202" r="10" />
+      </g>
+      <g className="defense-markers">
+        {[250, 310, 370, 430, 490].map(x => <path key={x} d={`M${x - 9} 151l18 18m0-18l-18 18`} />)}
+        <path d="M195 115l18 18m0-18l-18 18M515 115l18 18m0-18l-18 18M290 78l18 18m0-18l-18 18M430 78l18 18m0-18l-18 18" />
+      </g>
+      <g className="route-lines" filter="url(#marker-soft)">
+        {(routes[system] || routes.balancedPro).map((path, index) => <path key={index} d={path} markerEnd="url(#route-arrowhead)" />)}
+      </g>
+    </svg>
+  );
+}
+
+function PrepItem({ done, label, detail, onClick }) {
+  return (
+    <button className={`prep-item ${done ? 'done' : ''}`} onClick={onClick}>
+      <span className="prep-check" aria-hidden="true">{done ? '✓' : ''}</span>
+      <span><strong>{label}</strong><small>{detail}</small></span>
+      <span className="prep-arrow">›</span>
+    </button>
+  );
+}
+
+function PlayerMagnet({ player, onClick }) {
+  if (!player) return null;
+  return (
+    <button className="player-magnet" onClick={onClick} title={`Open ${player.name} in roster`}>
+      <span className="magnet-pos">{player.pos}</span>
+      <span className="magnet-name">{player.last?.toUpperCase() || player.name.toUpperCase()}</span>
+      <OvrPill ovr={player.ovr} className="magnet-ovr" />
+    </button>
+  );
+}
 
 export function ScreenDashboard({ onNav }) {
   const { userTeam, teams, week, season, phase, draft, hallOfFame, offseasonEvents, training, actions } = useLeague();
   const team = userTeam;
+  const currentSystem = team?.strategy?.offensiveSystem || 'balancedPro';
+  const [selectedSystem, setSelectedSystem] = useState(currentSystem);
+
   if (!team) return null;
 
+  const league = actions.getRawLeague();
   const isOffseason = phase === 'offseason';
   const freeAgencyComplete = !!offseasonEvents?.freeAgencyComplete;
   const draftComplete = draft?.status === 'completed';
@@ -14,207 +96,98 @@ export function ScreenDashboard({ onNav }) {
   const campComplete = !!training?.camp?.completed;
   const isPreseasonCamp = phase === 'preseason' && week === 0 && !campComplete;
   const canStartNextSeason = isOffseason && freeAgencyComplete && draftComplete && hofComplete;
+  const matchup = nextMatchup(league, team, teams, week + 1);
+  const opponent = matchup.opponent;
+  const confTeams = teams.filter(candidate => candidate.conf === team.conf).sort((a, b) => b.w - a.w || b.diff - a.diff);
+  const rank = Math.max(1, confTeams.findIndex(candidate => candidate.id === team.id) + 1);
+  const injuries = team.roster.filter(player => player.injStatus).sort((a, b) => b.ovr - a.ovr);
+  const stars = [...team.roster].sort((a, b) => b.ovr - a.ovr).slice(0, 4);
+  const selectedOption = OFFENSIVE_SYSTEMS.find(option => option.id === selectedSystem) || OFFENSIVE_SYSTEMS[4];
+  const prepCleared = isOffseason
+    ? [freeAgencyComplete, draftComplete, hofComplete].filter(Boolean).length
+    : isPreseasonCamp ? (campComplete ? 3 : 2) : 1 + (injuries.length === 0 ? 1 : 0);
+  const primaryAction = isOffseason
+    ? { label: canStartNextSeason ? 'Open training camp' : 'Continue offseason', target: !freeAgencyComplete ? 'fa' : !draftComplete ? 'draft' : !hofComplete ? 'hof' : 'dashboard' }
+    : isPreseasonCamp ? { label: 'Run training camp', target: 'training' } : { label: `Prepare Week ${week + 1}`, target: 'gameweek' };
 
-  function startNextSeason() {
-    if (actions.startNextSeason()) onNav('dashboard');
+  function runPrimaryAction() {
+    if (isOffseason && canStartNextSeason) { actions.startNextSeason(); return; }
+    onNav(primaryAction.target);
   }
 
-  const confTeams = teams.filter(t => t.conf === team.conf).sort((a, b) => b.w - a.w);
-  const injuries = team.roster.filter(p => p.injStatus).sort((a, b) => b.ovr - a.ovr).slice(0, 6);
-  const stars = [...team.roster].sort((a, b) => b.ovr - a.ovr).slice(0, 5);
+  function applyOffensiveSystem() {
+    if (selectedSystem === currentSystem) return;
+    actions.updateStrategy(team._engine?.id, { offensiveSystem: selectedSystem });
+  }
 
   return (
     <>
       <Topbar
-        crumb={`Team / ${team.city} ${team.name}`}
-        title="Dashboard"
-        pill={isOffseason ? `Offseason · Season ${season}` : isPreseasonCamp ? `Training Camp · Season ${season}` : `Wk ${week + 1} · Season ${season}`}
-        actions={
-          isOffseason ? (
-            <>
-              <button className="btn" onClick={() => onNav(!freeAgencyComplete ? 'fa' : !draftComplete ? 'draft' : 'hof')}>Offseason Tasks</button>
-              <button className="btn primary" disabled={!canStartNextSeason} onClick={startNextSeason}>Open Training Camp →</button>
-            </>
-          ) : isPreseasonCamp ? (
-            <>
-              <button className="btn" onClick={() => onNav('roster')}>Review Roster</button>
-              <button className="btn primary" onClick={() => onNav('training')}>Run Training Camp →</button>
-            </>
-          ) : (
-            <>
-              <button className="btn" onClick={() => onNav('gameweek')}>Sim Week</button>
-              <button className="btn primary" onClick={() => onNav('gameweek')}>Play Week {week + 1} →</button>
-            </>
-          )
-        }
+        crumb={`Coach's office / ${team.city} ${team.name}`}
+        title="Franchise HQ"
+        pill={isOffseason ? `Offseason · Season ${season}` : isPreseasonCamp ? `Camp · Season ${season}` : `Week ${week + 1} · Season ${season}`}
+        actions={<button className="btn primary hq-primary-action" onClick={runPrimaryAction}>{primaryAction.label} →</button>}
       />
-      <div className="page">
-        {isOffseason && (
-          <div className="card" style={{ marginBottom: 18 }}>
-            <div className="card-h"><h2>Offseason Checklist</h2><span className="right">Season {season + 1} waits here</span></div>
-            <div className="card-b" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span className={`chip ${freeAgencyComplete ? 'pos' : 'outline'}`}>Free Agency {freeAgencyComplete ? 'Complete' : 'Required'}</span>
-              <span className={`chip ${draftComplete ? 'pos' : 'outline'}`}>Draft {draftComplete ? 'Complete' : 'Required'}</span>
-              <span className={`chip ${hofComplete ? 'pos' : 'outline'}`}>Hall of Fame {hofComplete ? 'Complete' : 'Required'}</span>
-              <button className="btn primary" onClick={() => onNav(!freeAgencyComplete ? 'fa' : !draftComplete ? 'draft' : 'hof')}>Continue Offseason →</button>
-              <button className="btn" onClick={() => onNav('fa')}>Free Agency</button>
-              <button className="btn" onClick={() => onNav('contracts')}>Contracts</button>
-              <button className="btn" onClick={() => onNav('trades')}>Trades</button>
-            </div>
-          </div>
-        )}
+      <main className="page hq-page" style={{ '--team-primary': team.primary, '--team-secondary': team.secondary }}>
+        <section className="matchup-rail" aria-label="Next matchup">
+          <div className="matchup-team our-team"><ColorBlock team={team} size={48} /><div><span>{team.city}</span><strong>{team.name}</strong></div></div>
+          <div className="matchup-center"><span className="week-label">{isOffseason ? 'Front office calendar' : `Week ${week + 1} · ${matchup.venue}`}</span><b>{isOffseason ? 'Build the next roster' : matchup.isHome ? 'VS' : 'AT'}</b><small>{team.w}-{team.l} · {rank}{rank === 1 ? 'st' : rank === 2 ? 'nd' : rank === 3 ? 'rd' : 'th'} {team.conf}</small></div>
+          <div className="matchup-team opponent-team"><div><span>{opponent.city}</span><strong>{opponent.name}</strong></div><ColorBlock team={opponent} size={48} /></div>
+        </section>
 
-        {isPreseasonCamp && (
-          <div className="card" style={{ marginBottom: 18 }}>
-            <div className="card-h"><h2>Training Camp Required</h2><span className="right">Week 1 is locked</span></div>
-            <div className="card-b" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span className="chip outline">Camp Required</span>
-              <span className="muted" style={{ fontSize: 13, flex: 1 }}>Run one focused camp session before opening the regular season.</span>
-              <button className="btn primary" onClick={() => onNav('training')}>Run Training Camp →</button>
-            </div>
-          </div>
-        )}
-
-        {/* Stat tiles */}
-        <div className="grid grid-4" style={{ marginBottom: 18 }}>
-          <div className="stat-tile">
-            <div className="label">Record</div>
-            <div className="value">{team.w}–{team.l}</div>
-            <div className="delta pos">{confTeams[0]?.id === team.id ? '1st' : `${confTeams.findIndex(t => t.id === team.id) + 1}${ordSuffix(confTeams.findIndex(t => t.id === team.id) + 1)}`} in {team.conf}</div>
-          </div>
-          <div className="stat-tile">
-            <div className="label">Team Rating</div>
-            <div className="value">{team.ovr}</div>
-            <div className="delta">OFF {team.offRating} · DEF {team.defRating}</div>
-          </div>
-          <div className="stat-tile">
-            <div className="label">Cap Space</div>
-            <div className="value">{formatM(team.capSpace)}</div>
-            <div className="delta">{formatM(team.payroll)} payroll · {formatM(team.cap)} cap</div>
-          </div>
-          <div className="stat-tile">
-            <div className="label">Team Morale</div>
-            <div className="value">{team.morale}</div>
-            <div className={`delta ${team.morale >= 65 ? 'pos' : team.morale <= 35 ? 'neg' : ''}`}>
-              {team.morale >= 75 ? 'Energized' : team.morale >= 60 ? 'Confident' : team.morale >= 40 ? 'Neutral' : team.morale >= 25 ? 'Discouraged' : 'Deflated'}
-            </div>
-          </div>
-        </div>
-
-        {/* Two column */}
-        <div className="grid grid-3-2">
-          <div>
-            {/* Team Leaders */}
-            <div className="card">
-              <div className="card-h">
-                <h2>Team Leaders</h2>
-                <span className="right" style={{ cursor: 'pointer' }} onClick={() => onNav('roster')}>Roster →</span>
-              </div>
-              <div className="card-b tight">
-                <table className="tbl">
-                  <thead><tr><th>Player</th><th>Pos</th><th className="num">OVR</th><th>Status</th><th className="num">Cap</th></tr></thead>
-                  <tbody>
-                    {stars.map(p => (
-                      <tr key={p.id}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <Avatar player={p} team={team} size={32} />
-                            <div>
-                              <div style={{ fontWeight: 600 }}>{p.name}</div>
-                              {p.traits[0] && <div className="muted" style={{ fontSize: 11 }}>{TRAIT_ICONS[p.traits[0]] || '•'} {p.traits[0].replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}</div>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="mono">{p.pos}</td>
-                        <td className="num"><OvrPill ovr={p.ovr} /></td>
-                        <td><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></td>
-                        <td className="num mono">{formatM(p.cap)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* Right rail */}
-          <div>
-            {/* Conference standings */}
-            <div className="card" style={{ marginBottom: 14 }}>
-              <div className="card-h">
-                <h2>{team.conf} Conference</h2>
-                <span className="right" style={{ cursor: 'pointer' }} onClick={() => onNav('standings')}>Standings →</span>
-              </div>
-              <div className="card-b tight">
-                <table className="tbl">
-                  <thead><tr><th>Team</th><th className="num">W-L</th><th className="num">PF</th><th className="num">PA</th><th className="num">Diff</th></tr></thead>
-                  <tbody>
-                    {confTeams.map((t, i) => (
-                      <tr key={t.id} style={t.id === team.id ? { background: 'var(--bg-2)' } : {}}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ font: '700 11px var(--font-mono)', color: 'var(--ink-4)', width: 12 }}>{i + 1}</span>
-                            <ColorBlock team={t} size={16} />
-                            <span style={{ fontWeight: t.id === team.id ? 700 : 500 }}>{t.name}</span>
-                          </div>
-                        </td>
-                        <td className="num mono">{t.w}-{t.l}</td>
-                        <td className="num mono">{t.pf}</td>
-                        <td className="num mono">{t.pa}</td>
-                        <td className={`num mono ${t.diff > 0 ? 'up' : t.diff < 0 ? 'dn' : ''}`}>{t.diff > 0 ? '+' : ''}{t.diff}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Storylines */}
-            {team.storylines.length > 0 && (
-              <div className="card" style={{ marginBottom: 14 }}>
-                <div className="card-h"><h2>Storylines</h2></div>
-                <div className="card-b" style={{ fontSize: 13 }}>
-                  {team.storylines.slice(-4).reverse().map((s, i) => (
-                    <div key={i} style={{ padding: '4px 0', borderBottom: i < Math.min(team.storylines.length, 4) - 1 ? '1px solid var(--line-soft)' : 'none', color: 'var(--ink-2)' }}>
-                      {s}
-                    </div>
-                  ))}
+        <div className="office-workspace">
+          <section className="gameplan-board">
+            <div className="board-frame">
+              <header className="board-heading">
+                <div><span className="board-kicker">Offensive system · Current: {OFFENSIVE_SYSTEMS.find(option => option.id === currentSystem)?.short}</span><h2>{selectedOption.short}</h2></div>
+                <button className="board-link" onClick={() => onNav('strategy')}>Open Strategy ↗</button>
+              </header>
+              <div className="board-canvas">
+                <TacticalSketch system={selectedSystem} />
+                <p className="coach-note">{selectedOption.note}</p>
+                <div className="focus-selector" role="group" aria-label="Offensive system">
+                  {OFFENSIVE_SYSTEMS.map(option => <button key={option.id} className={selectedSystem === option.id ? 'selected' : ''} onClick={() => setSelectedSystem(option.id)} aria-pressed={selectedSystem === option.id}><span>{selectedSystem === option.id ? '●' : '○'}</span>{option.short}</button>)}
                 </div>
               </div>
-            )}
-
-            {/* Injury Report */}
-            <div className="card">
-              <div className="card-h"><h2>Injury Report</h2><span className="right">{injuries.length} players</span></div>
-              <div className="card-b tight">
-                {injuries.length === 0 && <div style={{ padding: 14 }} className="muted">No injuries.</div>}
-                {injuries.map(p => {
-                  const health = p._engine?.health || {};
-                  return (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--line-soft)' }}>
-                      <Avatar player={p} team={team} size={28} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name} <span className="muted" style={{ fontWeight: 400 }}>· {p.pos}</span></div>
-                        {health.injury && (
-                          <div className="muted" style={{ fontSize: 11 }}>{health.injury} · {health.weeksRemaining}wk remaining</div>
-                        )}
-                      </div>
-                      <InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} />
-                    </div>
-                  );
-                })}
-              </div>
+              <footer className="marker-tray"><span className="marker marker-blue" /><span className="marker marker-red" /><span className="marker marker-black" /><span className="tray-label">OFFENSE / BLUE · DEFENSE / RED</span><button onClick={applyOffensiveSystem} disabled={selectedSystem === currentSystem}>{selectedSystem === currentSystem ? 'System active' : `Apply ${selectedOption.short}`}</button></footer>
             </div>
-          </div>
+            <div className="magnet-rack">
+              <div className="rack-label">Core personnel</div>
+              {stars.map(player => <PlayerMagnet key={player.id} player={player} onClick={() => onNav('roster')} />)}
+              <button className="rack-more" onClick={() => onNav('depth')}>Depth board →</button>
+            </div>
+          </section>
+
+          <aside className="office-documents">
+            <article className="scouting-sheet">
+              <span className="binder-clip" aria-hidden="true" />
+              <header><span>MATCHUP BREAKDOWN · WK {week + 1}</span><b>OPPONENT FILE</b></header>
+              <div className="scout-team"><ColorBlock team={opponent} size={54} /><div><small>{opponent.city}</small><h3>{opponent.name}</h3><p>{opponent.w}-{opponent.l} · {opponent.conf}</p></div><div className="grade-stamp">{opponent.ovr >= 84 ? 'A' : opponent.ovr >= 78 ? 'B' : 'C'}<small>GRADE</small></div></div>
+              <div className="scout-ratings"><span><b>{opponent.offRating}</b> OFF</span><span><b>{opponent.defRating}</b> DEF</span><span className="scout-overall"><OvrPill ovr={opponent.ovr} /> OVR</span></div>
+              <div className="scout-insight"><span>TOP LINE</span><p>{opponent.defRating >= opponent.offRating ? 'Their defense sets the terms. Create width early and make the front run.' : 'Their offense carries them. Shorten the game and deny explosive downs.'}</p></div>
+              <button className="paper-action" onClick={() => onNav('gameweek')}>Open matchup preview <span>↗</span></button>
+            </article>
+
+            <article className="prep-sheet">
+              <header><span>Preparation</span><b>{isOffseason ? 'Front office board' : `${prepCleared} / 3 cleared`}</b></header>
+              {isOffseason ? <>
+                <PrepItem done={freeAgencyComplete} label="Free agency" detail={freeAgencyComplete ? 'Board closed' : 'Required'} onClick={() => onNav('fa')} />
+                <PrepItem done={draftComplete} label="Draft room" detail={draftComplete ? 'Class signed' : 'Required'} onClick={() => onNav('draft')} />
+                <PrepItem done={hofComplete} label="Hall ballot" detail={hofComplete ? 'Submitted' : 'Required'} onClick={() => onNav('hof')} />
+              </> : isPreseasonCamp ? <>
+                <PrepItem done={false} label="Training camp" detail="Required before Week 1" onClick={() => onNav('training')} />
+                <PrepItem done label="Roster review" detail={`${team.roster.length} players`} onClick={() => onNav('roster')} />
+                <PrepItem done label="Scheme install" detail="Systems carried forward" onClick={() => onNav('strategy')} />
+              </> : <>
+                <PrepItem done label="Review matchup" detail={`${team.abbr} vs ${opponent.abbr}`} onClick={() => onNav('gameweek')} />
+                <PrepItem done={injuries.length === 0} label="Medical check" detail={injuries.length ? `${injuries.length} player${injuries.length === 1 ? '' : 's'} flagged` : 'No restrictions'} onClick={() => onNav('roster')} />
+                <PrepItem done={!!team.strategy?.offensiveSystem} label="Review strategy" detail={`${OFFENSIVE_SYSTEMS.find(option => option.id === currentSystem)?.short} offense`} onClick={() => onNav('strategy')} />
+              </>}
+              <div className="prep-footer"><span>Cap room</span><b>{formatM(team.capSpace)}</b><span>Morale</span><b>{team.morale}</b></div>
+            </article>
+          </aside>
         </div>
-      </div>
+      </main>
     </>
   );
-}
-
-function ordSuffix(n) {
-  if (n === 1) return 'st';
-  if (n === 2) return 'nd';
-  if (n === 3) return 'rd';
-  return 'th';
 }

@@ -11,16 +11,12 @@ import {
   SCHEME_ROSTER_ADJUSTMENTS
 } from "./constants.js";
 import { createRng, makeId } from "./random.js";
+import { FIXED_TEAM_PRESTIGE, TEAM_IDENTITIES } from "./team-identities.js";
 
-const CITY_NAMES = Object.freeze([
-  "Florida", "Austin", "Columbus", "Sacramento", "Orlando", "Memphis", "Omaha", "Raleigh",
-  "Salt Lake", "Milwaukee", "San Antonio", "Louisville", "Boise", "Colorado", "Albuquerque", "Providence"
-]);
+export { FIXED_TEAM_PRESTIGE, TEAM_IDENTITIES } from "./team-identities.js";
 
-const TEAM_NAMES = Object.freeze([
-  "Buccaneers", "Founders", "Rockets", "Miners", "Pilots", "Kings", "Steel", "Redwoods",
-  "Summit", "Harbors", "Marshals", "Saints", "Tigers", "Vulcans", "Rogues", "Anchors"
-]);
+const CITY_NAMES = Object.freeze(TEAM_IDENTITIES.map(team => team.city));
+const TEAM_NAMES = Object.freeze(TEAM_IDENTITIES.map(team => team.nickname));
 
 const FIRST_NAMES = Object.freeze([
   "Marcus", "Eli", "Dante", "Theo", "Caleb", "Jalen", "Miles", "Nico", "Roman", "Isaiah",
@@ -30,25 +26,6 @@ const FIRST_NAMES = Object.freeze([
 const LAST_NAMES = Object.freeze([
   "Cross", "Mercer", "Vale", "Booker", "Stone", "Hale", "Bishop", "Rivers", "Knight", "Sutton",
   "Wells", "Maddox", "Price", "Hollis", "Foster", "Graves", "Monroe", "Vega", "Hayes", "Pierce"
-]);
-
-export const FIXED_TEAM_PRESTIGE = Object.freeze([
-  3.2, // Florida Buccaneers   - Competitive
-  4.5, // Austin Founders      – Elite
-  2.8, // Columbus Rockets     - Average
-  3.8, // Sacramento Miners    - Contender
-  2.2, // Orlando Pilots       – Average
-  4.2, // Memphis Kings        – Contender
-  3.0, // Omaha Steel          – Competitive
-  3.5, // Raleigh Redwoods     – Competitive
-  1.8, // Salt Lake Summit     – Rebuilding
-  4.8, // Milwaukee Harbors    – Elite
-  2.5, // San Antonio Marshals – Below Average
-  3.8, // Louisville Saints    - Contender
-  2.0, // Boise Tigers         - Rebuilding
-  4.0, // Colorado Vulcans     - Contender
-  3.2, // Albuquerque Rogues   - Competitive
-  2.8, // Providence Anchors   – Average
 ]);
 
 export function createLeague(seed = "mvp", options = {}) {
@@ -71,6 +48,7 @@ export function createLeague(seed = "mvp", options = {}) {
     id: makeId("league", [seed]),
     seed,
     name: "Fictional Gridiron Association",
+    coach: createCoachProfile(options.coach, playerTeamIndex),
     phase: PHASES.PRESEASON,
     currentSeason: 1,
     currentWeek: 0,
@@ -94,6 +72,21 @@ export function createLeague(seed = "mvp", options = {}) {
     games: [],
     saves: [],
     autosaveLog: []
+  };
+}
+
+function createCoachProfile(input = {}, playerTeamIndex = 0) {
+  const firstName = String(input?.firstName || "Alex").trim() || "Alex";
+  const lastName = String(input?.lastName || "Morgan").trim() || "Morgan";
+  return {
+    firstName,
+    lastName,
+    portraitIndex: Math.max(0, Math.min(15, Number(input?.portraitIndex ?? playerTeamIndex ?? 0))),
+    title: "Head Coach & General Manager",
+    trackingStartSeason: 1,
+    seasonLedger: [],
+    honors: [],
+    frontOffice: { draftSelections: 0, firstRoundPicks: 0, tradesCompleted: 0, freeAgentSignings: 0 }
   };
 }
 
@@ -215,6 +208,8 @@ function createInitialFreeAgentPool(rng) {
       stats: createEmptyStats(),
       careerStats: createEmptyStats(),
       awards: [],
+      origin: { type: "preCareer" },
+      championships: [],
       freeAgentSeasonsUnsigned: 0
     };
   });
@@ -254,7 +249,9 @@ function createPlayer(teamId, position, index, rng, rosterStrength = 0) {
     injuryHistory: [],
     stats: createEmptyStats(),
     careerStats: createEmptyStats(),
-    awards: []
+    awards: [],
+    origin: { type: "preCareer" },
+    championships: []
   };
 }
 

@@ -1,4 +1,26 @@
 import { Component } from 'react';
+import { GameIcon } from './GameIcon.jsx';
+import { TRAIT_ICONS } from './trait-data.js';
+
+const PORTRAIT_ATLAS = `${import.meta.env.BASE_URL}portraits/personnel-atlas-v2.png`;
+const PORTRAIT_COLUMNS = 8;
+const PORTRAIT_ROWS = 8;
+const PLAYER_PORTRAITS = 56;
+const COACH_PORTRAITS = 8;
+const BRAND_MARK = `${import.meta.env.BASE_URL}brand/afm-mark.svg`;
+
+function stableIndex(value, count) {
+  const text = String(value || 'afm26');
+  let hash = 0;
+  for (let i = 0; i < text.length; i += 1) hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+  return Math.abs(hash) % count;
+}
+
+function atlasPosition(index) {
+  const column = index % PORTRAIT_COLUMNS;
+  const row = Math.floor(index / PORTRAIT_COLUMNS);
+  return `${column * (100 / (PORTRAIT_COLUMNS - 1))}% ${row * (100 / (PORTRAIT_ROWS - 1))}%`;
+}
 
 // ── Error Boundary ──────────────────────────────────────────
 export class ErrorBoundary extends Component {
@@ -16,7 +38,7 @@ export class ErrorBoundary extends Component {
     if (this.state.error) {
       return (
         <div style={{ padding: 40, textAlign: 'center' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+          <div className="game-error-icon"><GameIcon name="warning" size={36} /></div>
           <h2 style={{ marginBottom: 8 }}>Something went wrong</h2>
           <p style={{ color: 'var(--ink-4)', maxWidth: 420, margin: '0 auto 16px' }}>
             {this.state.error?.message || 'An unexpected error occurred.'}
@@ -31,24 +53,6 @@ export class ErrorBoundary extends Component {
   }
 }
 
-export function formatM(v) {
-  if (v == null) return '—';
-  if (Math.abs(v) >= 100) return `$${Math.round(v)}M`;
-  return `$${(Math.round(v * 10) / 10).toFixed(1)}M`;
-}
-
-/** Format a raw dollar amount (e.g. 1500000 → $1.5M, 79400 → $79k) */
-export function formatDollars(v) {
-  if (v == null || v === 0) return '$0';
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) {
-    const m = v / 1_000_000;
-    return `$${Number.isInteger(m) ? m : m.toFixed(1)}M`;
-  }
-  if (abs >= 1_000) return `$${Math.round(v / 1_000)}k`;
-  return `$${Math.round(v)}`;
-}
-
 function ovrClass(o) {
   if (o >= 90) return 'elite';
   if (o >= 85) return 'gold';
@@ -57,8 +61,8 @@ function ovrClass(o) {
   return '';
 }
 
-export function OvrPill({ ovr }) {
-  return <span className={`ovr ${ovrClass(ovr)}`}>{ovr}</span>;
+export function OvrPill({ ovr, className = '' }) {
+  return <span className={`ovr ${ovrClass(ovr)} ${className}`.trim()} aria-label={`Overall rating ${ovr}`}>{ovr}</span>;
 }
 
 export function Stars({ n, max = 5 }) {
@@ -80,13 +84,12 @@ export function ColorBlock({ team, size = 28 }) {
         className="team-color-block"
         style={{
           width: size, height: size, borderRadius: radius,
-          background: team.primary,
+          background: 'transparent',
           display: 'grid', placeItems: 'center',
-          flex: '0 0 auto', overflow: 'hidden',
-          boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)',
+          flex: '0 0 auto', overflow: 'visible',
         }}
       >
-        <img src={team.logo} alt={team.name} style={{ width: '82%', height: '82%', display: 'block' }} />
+        <img src={team.logo} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', filter: 'drop-shadow(0 1px 1px rgba(36,42,40,.24))' }} />
       </div>
     );
   }
@@ -119,17 +122,42 @@ export function TeamBlock({ team, size = 28, showName = true, compact = false })
 
 export function Avatar({ player, team, size = 36 }) {
   if (!player) return null;
-  const initials = `${(player.first || player.firstName || '')[0] || ''}${(player.last || player.lastName || '')[0] || ''}`;
-  const pri = team?.primary || '#333';
-  const sec = team?.secondary || '#999';
+  const portrait = stableIndex(player.id || player.name, PLAYER_PORTRAITS);
   return (
-    <div style={{
-      width: size, height: size, borderRadius: 4, flex: '0 0 auto',
-      background: `linear-gradient(135deg, ${pri} 0%, ${pri} 50%, ${sec} 50%, ${sec} 100%)`,
-      display: 'grid', placeItems: 'center',
-      color: 'white', font: `700 ${size * 0.36}px var(--font-display)`,
-      letterSpacing: '0.02em',
-    }}>{initials}</div>
+    <div
+      className="portrait-avatar"
+      role="img"
+      aria-label={`${player.name || 'Player'} portrait`}
+      style={{
+        width: size,
+        height: size,
+        '--portrait-image': `url(${PORTRAIT_ATLAS})`,
+        '--portrait-position': atlasPosition(portrait),
+        '--portrait-accent': team?.primary || '#404845',
+      }}
+    />
+  );
+}
+
+export function CoachPortrait({ team, coach, size = 42, portraitIndex }) {
+  if (!team) return null;
+  const selected = Number.isFinite(portraitIndex) ? portraitIndex : coach?.portraitIndex;
+  const portrait = Number.isFinite(selected)
+    ? 48 + (Math.max(0, Math.min(15, selected)) % 16)
+    : PLAYER_PORTRAITS + stableIndex(team.id || team.name, COACH_PORTRAITS);
+  return (
+    <div
+      className="portrait-avatar coach-portrait"
+      role="img"
+      aria-label={`${coach?.firstName || team.city} ${coach?.lastName || team.name} coach portrait`}
+      style={{
+        width: size,
+        height: size,
+        '--portrait-image': `url(${PORTRAIT_ATLAS})`,
+        '--portrait-position': atlasPosition(portrait),
+        '--portrait-accent': team.primary || '#404845',
+      }}
+    />
   );
 }
 
@@ -150,27 +178,6 @@ export function InjBadge({ status, weeksRemaining }) {
   return <span className={`badge ${cls}`}>{label}{weeks}</span>;
 }
 
-export const TRAIT_ICONS = {
-  'durable': '🛡️', 'fragile': '🩹',
-  'leader': '👑', 'lockerRoomRisk': '⚠️',
-  'bigPlaySpark': '⚡', 'conservative': '🧊',
-  'highMotor': '🔥', 'takesPlaysOff': '😴',
-  'technician': '✂️', 'rawTools': '💎',
-};
-
-export const TRAIT_DESCRIPTIONS = {
-  'durable': 'Rarely misses time due to injury. Bounces back quickly from hard contact.',
-  'fragile': 'Elevated injury risk. Can miss significant time after hits.',
-  'leader': 'Elevates teammates around them. Boosts morale and team cohesion.',
-  'lockerRoomRisk': 'Disrupts team chemistry. Can lower morale if left unchecked.',
-  'bigPlaySpark': 'Thrives in high-leverage moments. More likely to make game-changing plays.',
-  'conservative': 'Plays within the system. Low mistake rate, but rarely takes over a game.',
-  'highMotor': 'Never takes a play off. Consistently outperforms expectations through effort.',
-  'takesPlaysOff': 'Effort can wane during games. Inconsistent performance, especially late.',
-  'technician': 'Elite football IQ and technique. Gets the most out of every situation.',
-  'rawTools': 'Exceptional athletic gifts, but inconsistent fundamentals. Boom-or-bust potential.',
-};
-
 export function TraitBadge({ trait }) {
   const icon = TRAIT_ICONS[trait] || '•';
   const label = trait.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
@@ -184,7 +191,7 @@ export function TraitBadge({ trait }) {
       border: '1px solid var(--line-1)',
       whiteSpace: 'nowrap',
     }}>
-      <span style={{ fontSize: 13 }}>{icon}</span> {label}
+      <GameIcon name={icon} size={13} /> {label}
     </span>
   );
 }
@@ -206,12 +213,12 @@ export function FieldDiagram({ losYard = 35, possessionLeft = true }) {
   );
 }
 
-export function Sidebar({ active, onNav, team, season, week, lastSaved, onSave, onExit }) {
+export function Sidebar({ active, onNav, team, coach, onCoachOpen, season, week, lastSaved, onSave, onExit }) {
   const sections = [
     {
       label: 'Team',
       items: [
-        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'dashboard', label: 'HQ' },
         { id: 'roster', label: 'Roster', badge: team ? `${team.roster?.length || 55}` : '55' },
         { id: 'depth', label: 'Depth Chart' },
         { id: 'strategy', label: 'Strategy' },
@@ -246,27 +253,30 @@ export function Sidebar({ active, onNav, team, season, week, lastSaved, onSave, 
   ];
 
   return (
-    <aside className="sidebar">
+    <aside
+      className="sidebar"
+      style={{ '--team-primary': team?.primary || '#404845', '--team-secondary': team?.secondary || '#E9E2D2' }}
+    >
       <div className="brand">
-        <div className="brand-mark">AFL</div>
+        <div className="brand-mark"><img src={BRAND_MARK} alt="" /></div>
         <div>
-          <div className="brand-text">AFM-26</div>
+          <div className="brand-text">AFM</div>
           <div className="brand-sub">Season {season || 1} · Wk {(week || 0) + 1}</div>
         </div>
       </div>
 
       {team && (
-        <div className="team-card">
-          <ColorBlock team={team} size={32} />
+        <button type="button" className="team-card" onClick={onCoachOpen} aria-label="Open coach career profile">
+          <CoachPortrait team={team} coach={coach} size={38} />
           <div className="team-card-text">
-            <div className="city">{team.city}</div>
-            <div className="name">{team.name}</div>
+            <div className="city">{coach ? `${coach.firstName} ${coach.lastName}` : team.city}</div>
+            <div className="name">{team.city} {team.name}</div>
           </div>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
             <div style={{ font: '700 14px var(--font-mono)' }}>{team.w ?? 0}-{team.l ?? 0}</div>
             <div style={{ fontSize: 10, color: 'var(--ink-4)' }}>{team.confRank ? `${team.confRank} ${team.conf}` : team.conf}</div>
           </div>
-        </div>
+        </button>
       )}
 
       <nav>
@@ -274,21 +284,17 @@ export function Sidebar({ active, onNav, team, season, week, lastSaved, onSave, 
           <div className="nav-section" key={sec.label}>
             <div className="nav-section-label">{sec.label}</div>
             {sec.items.map(it => (
-              <div
+              <button
                 key={it.id}
                 className={`nav-item ${active === it.id ? 'active' : ''}`}
                 onClick={() => onNav(it.id)}
+                type="button"
               >
                 <span>{it.label}</span>
                 {it.badge && (
-                  <span style={{
-                    marginLeft: 'auto', fontSize: 10, fontWeight: 700,
-                    padding: '2px 6px', borderRadius: 99,
-                    background: active === it.id ? 'rgba(255,255,255,0.15)' : 'var(--bg-3)',
-                    color: active === it.id ? 'white' : 'var(--ink-3)',
-                  }}>{it.badge}</span>
+                  <span className="nav-badge">{it.badge}</span>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         ))}
@@ -335,9 +341,9 @@ export function TradeChip({ name, detail, highlight, onRemove }) {
   );
 }
 
-export function Topbar({ crumb, title, pill, actions }) {
+export function Topbar({ crumb, title, pill, actions, className = '' }) {
   return (
-    <div className="topbar">
+    <div className={`topbar ${className}`.trim()}>
       <div>
         <div className="crumb">{crumb}</div>
         <h1>{title}</h1>

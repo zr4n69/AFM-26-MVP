@@ -1,5 +1,7 @@
-import { useLeague } from '../context/LeagueContext.jsx';
+import { useState } from 'react';
+import { useLeague } from '../context/league-context.js';
 import { Topbar, ColorBlock, OvrPill, Avatar } from '../components/Chrome.jsx';
+import { PlayerDossier } from '../components/PlayerDossier.jsx';
 
 const AWARD_META = {
   seasonMvp:              { label: 'Season MVP',                icon: 'MVP', color: 'var(--neon, #C7FF3E)', basis: 'overall value' },
@@ -39,12 +41,12 @@ function statLine(player) {
   return `${s.tackles || 0} tkl · ${s.sacks || 0} sck · ${s.interceptions || 0} INT`;
 }
 
-function RaceRow({ rank, player, team, scoreFn, maxScore }) {
+function RaceRow({ rank, player, team, scoreFn, maxScore, onOpen }) {
   if (!player || !team) return null;
   const score = scoreFn(player);
   const pct = maxScore > 0 ? (score / maxScore) * 100 : 0;
   return (
-    <div style={{ padding: '9px 0', borderBottom: '1px solid var(--line-soft, rgba(255,255,255,0.06))' }}>
+    <div role="button" tabIndex="0" onClick={() => onOpen(player, team)} style={{ padding: '9px 0', borderBottom: '1px solid var(--line-soft, rgba(255,255,255,0.06))', cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{
           width: 20, fontSize: 11, fontWeight: 700, color: rank === 1 ? 'var(--neon)' : 'var(--ink-4)',
@@ -70,7 +72,7 @@ function RaceRow({ rank, player, team, scoreFn, maxScore }) {
   );
 }
 
-function AwardWatchCard({ awardKey, candidates, scoreFn }) {
+function AwardWatchCard({ awardKey, candidates, scoreFn, onOpen }) {
   const meta = AWARD_META[awardKey];
   if (!candidates || candidates.length === 0) return null;
   const maxScore = scoreFn(candidates[0]);
@@ -86,14 +88,14 @@ function AwardWatchCard({ awardKey, candidates, scoreFn }) {
       </div>
       <div className="card-b tight" style={{ padding: '4px 16px 8px' }}>
         {candidates.slice(0, 5).map((c, i) => (
-          <RaceRow key={c.player.id} rank={i + 1} player={c.player} team={c.team} scoreFn={scoreFn} maxScore={maxScore} />
+          <RaceRow key={c.player.id} rank={i + 1} player={c.player} team={c.team} scoreFn={scoreFn} maxScore={maxScore} onOpen={onOpen} />
         ))}
       </div>
     </div>
   );
 }
 
-function WinnerCard({ awardKey, entry, findPlayer, findTeam }) {
+function WinnerCard({ awardKey, entry, findPlayer, findTeam, onOpen }) {
   const meta = AWARD_META[awardKey];
   if (!entry) return null;
   const team = findTeam(entry.teamId);
@@ -101,7 +103,7 @@ function WinnerCard({ awardKey, entry, findPlayer, findTeam }) {
   if (!player || !team) return null;
 
   return (
-    <div className="card" style={{ borderTop: `3px solid ${meta.color}` }}>
+    <div className="card" onClick={() => onOpen(player, team)} style={{ borderTop: `3px solid ${meta.color}`, cursor: 'pointer' }}>
       <div className="card-h" style={{ gap: 8 }}>
         <span className="chip outline" style={{ fontSize: 10, color: meta.color, borderColor: meta.color }}>{meta.icon}</span>
         <div style={{ flex: 1 }}>
@@ -127,7 +129,7 @@ function WinnerCard({ awardKey, entry, findPlayer, findTeam }) {
 }
 
 
-function AllProTable({ entries, label, findPlayer, findTeam }) {
+function AllProTable({ entries, label, findPlayer, findTeam, onOpen }) {
   return (
     <div className="card">
       <div className="card-h"><h2>{label}</h2></div>
@@ -138,7 +140,7 @@ function AllProTable({ entries, label, findPlayer, findTeam }) {
               const team = findTeam(a.teamId);
               const player = findPlayer(a.teamId, a.playerId);
               return (
-                <tr key={i}>
+                <tr key={i} className="clickable-row" onClick={() => player && onOpen(player, team)}>
                   <td className="mono" style={{ width: 44, fontWeight: 700, color: 'var(--ink-3)' }}>{a.metadata?.position}</td>
                   <td><strong>{player?.name || '-'}</strong></td>
                   <td style={{ width: 26 }}><ColorBlock team={team} size={16} /></td>
@@ -154,8 +156,10 @@ function AllProTable({ entries, label, findPlayer, findTeam }) {
   );
 }
 
-export function ScreenAwards({ onNav }) {
-  const { userTeam, teams, awards, phase } = useLeague();
+export function ScreenAwards() {
+  const { teams, awards } = useLeague();
+  const [profile, setProfile] = useState(null);
+  const openProfile = (player, team) => setProfile({ player, team });
 
   const hasAwards = awards?.regularSeasonProcessed && Object.keys(awards.winners || {}).length > 0;
 
@@ -213,11 +217,11 @@ export function ScreenAwards({ onNav }) {
               <span className="sub">Live race — updates after each simulated week</span>
             </div>
             <div className="grid grid-3" style={{ marginBottom: 24 }}>
-              <AwardWatchCard awardKey="seasonMvp"             candidates={mvpCandidates}     scoreFn={p => mvpScore(p)} />
-              <AwardWatchCard awardKey="offensivePlayerOfYear" candidates={opyCandidates}     scoreFn={p => offScore(p)} />
-              <AwardWatchCard awardKey="defensivePlayerOfYear" candidates={dpyCandidates}     scoreFn={p => defScore(p)} />
-              {rooOffCandidates.length > 0 && <AwardWatchCard awardKey="offensiveRookieOfYear" candidates={rooOffCandidates} scoreFn={p => offScore(p)} />}
-              {rooDefCandidates.length > 0 && <AwardWatchCard awardKey="defensiveRookieOfYear" candidates={rooDefCandidates} scoreFn={p => defScore(p)} />}
+              <AwardWatchCard awardKey="seasonMvp"             candidates={mvpCandidates}     scoreFn={p => mvpScore(p)} onOpen={openProfile} />
+              <AwardWatchCard awardKey="offensivePlayerOfYear" candidates={opyCandidates}     scoreFn={p => offScore(p)} onOpen={openProfile} />
+              <AwardWatchCard awardKey="defensivePlayerOfYear" candidates={dpyCandidates}     scoreFn={p => defScore(p)} onOpen={openProfile} />
+              {rooOffCandidates.length > 0 && <AwardWatchCard awardKey="offensiveRookieOfYear" candidates={rooOffCandidates} scoreFn={p => offScore(p)} onOpen={openProfile} />}
+              {rooDefCandidates.length > 0 && <AwardWatchCard awardKey="defensiveRookieOfYear" candidates={rooDefCandidates} scoreFn={p => defScore(p)} onOpen={openProfile} />}
             </div>
 
             <div className="card">
@@ -245,7 +249,7 @@ export function ScreenAwards({ onNav }) {
             </div>
             <div className="grid grid-3" style={{ marginBottom: 24 }}>
               {majorAwards.map(a => (
-                <WinnerCard key={a.key} awardKey={a.key} entry={a.entry} findPlayer={findPlayer} findTeam={findTeam} />
+                <WinnerCard key={a.key} awardKey={a.key} entry={a.entry} findPlayer={findPlayer} findTeam={findTeam} onOpen={openProfile} />
               ))}
             </div>
 
@@ -254,18 +258,19 @@ export function ScreenAwards({ onNav }) {
               <h2>All-Pro Teams</h2>
             </div>
             <div className="grid grid-2" style={{ marginBottom: 14 }}>
-              <AllProTable entries={allProOffense} label="1st Team All-Pro · Offense" findPlayer={findPlayer} findTeam={findTeam} />
-              <AllProTable entries={allProDefense} label="1st Team All-Pro · Defense" findPlayer={findPlayer} findTeam={findTeam} />
+              <AllProTable entries={allProOffense} label="1st Team All-Pro · Offense" findPlayer={findPlayer} findTeam={findTeam} onOpen={openProfile} />
+              <AllProTable entries={allProDefense} label="1st Team All-Pro · Defense" findPlayer={findPlayer} findTeam={findTeam} onOpen={openProfile} />
             </div>
             {(allPro2Off.length > 0 || allPro2Def.length > 0) && (
               <div className="grid grid-2" style={{ marginBottom: 24 }}>
-                <AllProTable entries={allPro2Off} label="2nd Team All-Pro · Offense" findPlayer={findPlayer} findTeam={findTeam} />
-                <AllProTable entries={allPro2Def} label="2nd Team All-Pro · Defense" findPlayer={findPlayer} findTeam={findTeam} />
+                <AllProTable entries={allPro2Off} label="2nd Team All-Pro · Offense" findPlayer={findPlayer} findTeam={findTeam} onOpen={openProfile} />
+                <AllProTable entries={allPro2Def} label="2nd Team All-Pro · Defense" findPlayer={findPlayer} findTeam={findTeam} onOpen={openProfile} />
               </div>
             )}
           </>
         )}
       </div>
+      {profile && <PlayerDossier player={profile.player} team={profile.team} onClose={() => setProfile(null)} trackingStartSeason={profile.player._engine?.achievementTrackingStartSeason} />}
     </>
   );
 }

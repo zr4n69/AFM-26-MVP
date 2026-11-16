@@ -54,6 +54,8 @@ export function runSeasonReview(league) {
   processContractBonuses(league);
   updateFranchisePrestige(league);
 
+  recordCareerHistory(league);
+
   league.seasonHistory.push({
     season: league.currentSeason,
     standings: structuredClone(league.standings),
@@ -63,6 +65,63 @@ export function runSeasonReview(league) {
   });
   recordAutosave(league, "season", { action: "review", season: league.currentSeason });
   return awards;
+}
+
+function recordCareerHistory(league) {
+  const championId = league.playoff?.championTeamId;
+  if (championId) {
+    const champion = league.teams.find((team) => team.id === championId);
+    for (const player of champion?.roster || []) {
+      player.championships ||= [];
+      if (!player.championships.some((entry) => entry.season === league.currentSeason)) {
+        player.championships.push({ season: league.currentSeason, teamId: championId });
+      }
+    }
+  }
+
+  const coach = league.coach;
+  const team = league.teams.find((entry) => entry.isPlayerControlled);
+  if (!coach || !team || coach.seasonLedger?.some((entry) => entry.season === league.currentSeason)) return;
+  coach.seasonLedger ||= [];
+  coach.honors ||= [];
+  const standing = league.standings.find((entry) => entry.teamId === team.id) || team.standings || {};
+  const playoffGames = (league.playoff?.rounds || []).flatMap((round) =>
+    (round.games || []).filter((game) => game.played && (game.homeTeamId === team.id || game.awayTeamId === team.id))
+      .map((game) => ({ ...game, roundName: round.name }))
+  );
+  const playoffWins = playoffGames.filter((game) => game.winnerTeamId === team.id).length;
+  const playoffLosses = playoffGames.length - playoffWins;
+  const isChampion = championId === team.id;
+  let postseason = playoffGames.length ? "Playoff appearance" : "Missed playoffs";
+  if (isChampion) postseason = "League champion";
+  else if (playoffGames.length) postseason = `${playoffGames.at(-1).roundName || "Playoff"} exit`;
+  const entry = {
+    season: league.currentSeason,
+    wins: standing.wins || 0,
+    losses: standing.losses || 0,
+    ties: standing.ties || 0,
+    pointsFor: standing.pointsFor || 0,
+    pointsAgainst: standing.pointsAgainst || 0,
+    playoffWins,
+    playoffLosses,
+    postseason,
+    champion: isChampion
+  };
+  coach.seasonLedger.push(entry);
+
+  const ranked = [...league.standings].sort((a, b) => (b.wins - a.wins) || ((b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst)));
+  if (ranked[0]?.teamId === team.id) coach.honors.push({ type: "coachOfYear", season: league.currentSeason });
+  const previous = coach.seasonLedger.at(-2);
+  if (previous && entry.wins - previous.wins >= 3) {
+    const priorHistory = league.seasonHistory.at(-1)?.standings || [];
+    const improvements = league.standings.map((current) => {
+      const old = priorHistory.find((item) => item.teamId === current.teamId);
+      return { teamId: current.teamId, gain: old ? current.wins - old.wins : -Infinity };
+    });
+    if (improvements.sort((a, b) => b.gain - a.gain)[0]?.teamId === team.id) {
+      coach.honors.push({ type: "turnaroundCoach", season: league.currentSeason });
+    }
+  }
 }
 
 function computeAllProTeams(league) {

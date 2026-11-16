@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef, Fragment, memo } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, ColorBlock, FieldDiagram, InjBadge } from '../components/Chrome.jsx';
+import { useLeague } from '../context/league-context.js';
+import { Topbar, ColorBlock, InjBadge, OvrPill } from '../components/Chrome.jsx';
 import { PlayAnimationOverlay } from './PlayAnimations.jsx';
+import { GameIcon } from '../components/GameIcon.jsx';
 
 const REGULAR_SEASON_WEEKS = 10;
+const LIVE_DRIVE_INTERVAL = 2800;
 
-export function ScreenGameWeek({ onNav }) {
+export function ScreenGameWeek({ onNav, onPresentationChange }) {
   const { userTeam, teams, week, season, phase, actions } = useLeague();
   const [mode, setMode] = useState('preview');
   const [gameResult, setGameResult] = useState(null);
@@ -17,6 +19,8 @@ export function ScreenGameWeek({ onNav }) {
   // playoff sim state
   const [playoffRoundGames, setPlayoffRoundGames] = useState(null);
   const [playoffRoundName, setPlayoffRoundName] = useState(null);
+
+  useEffect(() => () => onPresentationChange?.(null), [onPresentationChange]);
 
   const team = userTeam;
   if (!team) return null;
@@ -87,6 +91,7 @@ export function ScreenGameWeek({ onNav }) {
       );
       if (!userGame) { setMode('preview'); return; }
 
+      onPresentationChange?.({ team, season, week });
       setSimWeek(weekToSim);
       setSimOpp(opp);
       setGameResult(userGame);
@@ -103,6 +108,12 @@ export function ScreenGameWeek({ onNav }) {
 
   function skipToEnd() {
     setDriveIndex(drives.length);
+    onPresentationChange?.(null);
+    setMode('recap');
+  }
+
+  function finishReplay() {
+    onPresentationChange?.(null);
     setMode('recap');
   }
 
@@ -122,7 +133,7 @@ export function ScreenGameWeek({ onNav }) {
         paused={paused}
         setPaused={setPaused}
         onSkip={skipToEnd}
-        onDone={() => setMode('recap')}
+        onDone={finishReplay}
       />
     );
   }
@@ -195,43 +206,51 @@ function formatSeconds(s) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+function readableTeamInk(color) {
+  let hex = String(color || '#404845').replace('#', '');
+  if (hex.length === 3) hex = hex.split('').map(char => char + char).join('');
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return '#fff';
+  const value = Number.parseInt(hex, 16);
+  const red = (value >> 16) & 255;
+  const green = (value >> 8) & 255;
+  const blue = value & 255;
+  return ((red * 299 + green * 587 + blue * 114) / 1000) >= 148 ? '#242a28' : '#fff';
+}
+
 function GamePreview({ team, opp, week, season, onStart, onNav }) {
   const isHome = week % 2 === 1;
 
   return (
     <>
       <Topbar
+        className="game-preview-topbar"
         crumb={`Game Week / Week ${week}`}
         title={`${team.name} vs ${opp.name}`}
         actions={
-          <>
+          <div className="game-preview-actions">
             <button className="btn" onClick={() => onNav('strategy')}>Game Plan</button>
             <button className="btn primary" onClick={onStart}>Start Sim →</button>
-          </>
+          </div>
         }
       />
       <div className="page">
-        <div className="card" style={{ marginBottom: 18, overflow: 'hidden' }}>
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr auto 1fr',
-            background: `linear-gradient(90deg, ${team.primary} 0%, ${team.primary} 32%, var(--turf-0) 48%, var(--turf-0) 52%, ${opp.primary} 68%, ${opp.primary} 100%)`,
-            color: 'var(--chalk)', padding: '28px 32px', alignItems: 'center', gap: 24,
-          }}>
-            <div>
-              <div style={{ fontSize: 11, letterSpacing: '0.1em', opacity: 0.85, textTransform: 'uppercase' }}>{isHome ? 'Home' : 'Away'} · {team.w}-{team.l}</div>
-              <div style={{ font: '700 32px var(--font-display)', marginTop: 4 }}>{team.city}</div>
-              <div style={{ font: '700 32px var(--font-display)', lineHeight: 1 }}>{team.name}</div>
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>OVR {team.ovr} · OFF {team.offRating} · DEF {team.defRating}</div>
+        <div className="card game-preview-card">
+          <div className="game-preview-matchup" style={{ background: `linear-gradient(90deg, ${team.primary} 0%, ${team.primary} 32%, var(--turf-0) 48%, var(--turf-0) 52%, ${opp.primary} 68%, ${opp.primary} 100%)` }}>
+            <div className="game-preview-team game-preview-team-home">
+              <div className="game-preview-record">{isHome ? 'Home' : 'Away'} · {team.w}-{team.l}</div>
+              <div className="game-preview-city">{team.city}</div>
+              <div className="game-preview-name">{team.name}</div>
+              <div className="matchup-ratings"><span>OVR <OvrPill ovr={team.ovr} className="ovr-on-dark" /></span><span>OFF <b>{team.offRating}</b></span><span>DEF <b>{team.defRating}</b></span></div>
             </div>
-            <div style={{ textAlign: 'center', color: 'var(--chalk)' }}>
-              <div style={{ font: '700 11px var(--font-mono)', color: 'var(--neon)', letterSpacing: '0.18em' }}>WEEK {week} · SEASON {season}</div>
-              <div style={{ font: '400 72px var(--font-display)', color: 'var(--chalk)', lineHeight: 1, margin: '6px 0', letterSpacing: '0.02em', textShadow: '0 0 20px var(--neon-glow)' }}>VS</div>
+            <div className="game-preview-vs">
+              <div className="game-preview-week">WEEK {week} · SEASON {season}</div>
+              <div className="game-preview-vs-label">VS</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.1em', opacity: 0.85, textTransform: 'uppercase' }}>{isHome ? 'Away' : 'Home'} · {opp.w}-{opp.l}</div>
-              <div style={{ font: '700 32px var(--font-display)', marginTop: 4 }}>{opp.city}</div>
-              <div style={{ font: '700 32px var(--font-display)', lineHeight: 1 }}>{opp.name}</div>
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.9 }}>OVR {opp.ovr} · OFF {opp.offRating} · DEF {opp.defRating}</div>
+            <div className="game-preview-team game-preview-team-away">
+              <div className="game-preview-record">{isHome ? 'Away' : 'Home'} · {opp.w}-{opp.l}</div>
+              <div className="game-preview-city">{opp.city}</div>
+              <div className="game-preview-name">{opp.name}</div>
+              <div className="matchup-ratings matchup-ratings-away"><span>OVR <OvrPill ovr={opp.ovr} className="ovr-on-dark" /></span><span>OFF <b>{opp.offRating}</b></span><span>DEF <b>{opp.defRating}</b></span></div>
             </div>
           </div>
         </div>
@@ -309,11 +328,16 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
     }
     timerRef.current = setTimeout(() => {
       setDriveIndex(prev => prev + 1);
-    }, 1700);
+    }, LIVE_DRIVE_INTERVAL);
     return () => clearTimeout(timerRef.current);
-  }, [driveIndex, paused, drives.length]);
+  }, [driveIndex, paused, drives.length, onDone, setDriveIndex]);
 
   const keyPlays = game.keyEvents || [];
+  const driveNotes = visibleDrives.flatMap(drive => drive.keyNotes || []);
+  const revealedKeyPlayCount = drives.length
+    ? Math.min(keyPlays.length, Math.ceil(keyPlays.length * (visibleDrives.length / drives.length)))
+    : 0;
+  const revealedKeyPlays = driveNotes.length ? driveNotes : keyPlays.slice(0, revealedKeyPlayCount);
 
   return (
     <>
@@ -324,28 +348,28 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
         </>
       } />
       <div className="page">
-        <div className="card" style={{ marginBottom: 14, overflow: 'hidden' }}>
-          <div style={{ background: 'var(--turf-0)', color: 'var(--chalk)', display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', padding: '20px 28px', gap: 24, borderBottom: '2px solid var(--neon)', boxShadow: 'inset 0 0 80px rgba(199,255,62,0.06)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div className="card game-live-card">
+          <div className="live-scorebug">
+            <div className="live-score-team live-score-home">
               <ColorBlock team={team} size={48} />
-              <div>
-                <div style={{ font: '400 24px var(--font-display)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>{team.abbr}</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>{team.name}</div>
+              <div className="live-score-team-copy">
+                <strong>{team.abbr}</strong>
+                <span>{team.name}</span>
               </div>
-              <div className="score-big" style={{ marginLeft: 'auto', fontSize: 64 }}>{scoreUs}</div>
+              <div className="live-score-number">{scoreUs}</div>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ font: '700 11px var(--font-stamp)', letterSpacing: '0.18em', color: 'var(--neon)', textTransform: 'uppercase' }}>Q{quarter}</div>
-              <div style={{ display: 'inline-flex', gap: 6, marginTop: 10 }}>
-                {[1, 2, 3, 4].map(q => <div key={q} style={{ width: 12, height: 4, background: q <= quarter ? 'var(--neon)' : 'rgba(255,255,255,0.18)', boxShadow: q <= quarter ? '0 0 8px var(--neon-glow)' : 'none' }} />)}
+            <div className="live-score-state">
+              <strong>Q{quarter}</strong>
+              <div className="live-quarter-track">
+                {[1, 2, 3, 4].map(q => <i key={q} className={q <= quarter ? 'active' : ''} />)}
               </div>
-              <div style={{ font: '700 11px var(--font-stamp)', letterSpacing: '0.18em', color: 'var(--hot)', marginTop: 10, textTransform: 'uppercase' }}>{poss === 'us' ? '◀ ' : ''}{poss === 'us' ? team.abbr : opp.abbr} ball{poss === 'us' ? '' : ' ▶'}</div>
+              <span>{poss === 'us' ? '◀ ' : ''}{poss === 'us' ? team.abbr : opp.abbr} BALL{poss === 'us' ? '' : ' ▶'}</span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, justifyContent: 'flex-end' }}>
-              <div className="score-big" style={{ marginRight: 'auto', fontSize: 64 }}>{scoreThem}</div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ font: '400 24px var(--font-display)', letterSpacing: '0.02em', textTransform: 'uppercase' }}>{opp.abbr}</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>{opp.name}</div>
+            <div className="live-score-team live-score-away">
+              <div className="live-score-number">{scoreThem}</div>
+              <div className="live-score-team-copy">
+                <strong>{opp.abbr}</strong>
+                <span>{opp.name}</span>
               </div>
               <ColorBlock team={opp} size={48} />
             </div>
@@ -375,15 +399,18 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
               <table className="tbl">
                 <thead><tr><th>#</th><th>Team</th><th className="num">Yds</th><th>Time</th><th>Result</th></tr></thead>
                 <tbody>
-                  {[...visibleDrives].reverse().map(d => (
-                    <tr key={d.num} style={{ animation: 'fadeIn 0.3s' }}>
-                      <td className="mono">{d.num}</td>
-                      <td><ColorBlock team={d.team === 'us' ? team : opp} size={14} /> <span className="mono" style={{ marginLeft: 6 }}>{d.team === 'us' ? team.abbr : opp.abbr}</span></td>
-                      <td className="num mono">{d.yards}</td>
-                      <td className="mono">{d.time}</td>
-                      <td><ResultChip result={d.result} /></td>
-                    </tr>
-                  ))}
+                  {[...visibleDrives].reverse().map(d => {
+                    const driveTeam = d.team === 'us' ? team : opp;
+                    return (
+                      <tr key={d.num} className="drive-row" style={{ '--drive-team-color': driveTeam.primary, '--drive-team-ink': readableTeamInk(driveTeam.primary), animation: 'fadeIn 0.3s' }}>
+                        <td className="mono">{d.num}</td>
+                        <td><span className="drive-team-cell"><ColorBlock team={driveTeam} size={14} /><span className="mono">{driveTeam.abbr}</span></span></td>
+                        <td className="num mono">{d.yards}</td>
+                        <td className="mono">{d.time}</td>
+                        <td><ResultChip result={d.result} /></td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -397,8 +424,8 @@ function GameLive({ team, opp, game, drives, driveIndex, setDriveIndex, paused, 
               </span>
             </div>
             <div className="card-b tight">
-              {keyPlays.length === 0 && <div style={{ padding: 16 }} className="muted">Game is starting…</div>}
-              {keyPlays.map((kp, i) => (
+              {revealedKeyPlays.length === 0 && <div style={{ padding: 16 }} className="muted">Game is starting…</div>}
+              {revealedKeyPlays.map((kp, i) => (
                 <div key={i} style={{ padding: '12px 16px', borderBottom: '1px solid var(--line-soft)', animation: 'fadeIn 0.3s' }}>
                   <div style={{ fontSize: 13 }}>{kp}</div>
                 </div>
@@ -460,16 +487,19 @@ function GameRecap({ team, opp, game, drives, week, isSeasonFinal, onNext }) {
             <table className="tbl">
               <thead><tr><th>#</th><th>Team</th><th className="num">Yds</th><th>Time</th><th>Concepts</th><th>Result</th></tr></thead>
               <tbody>
-                {drives.map(d => (
-                  <tr key={d.num}>
-                    <td className="mono">{d.num}</td>
-                    <td><ColorBlock team={d.team === 'us' ? team : opp} size={14} /> <span className="mono" style={{ marginLeft: 6 }}>{d.team === 'us' ? team.abbr : opp.abbr}</span></td>
-                    <td className="num mono">{d.yards}</td>
-                    <td className="mono">{d.time}</td>
-                    <td className="muted" style={{ fontSize: 12 }}>{formatConcepts(d.concepts)}</td>
-                    <td><ResultChip result={d.result} /></td>
-                  </tr>
-                ))}
+                {drives.map(d => {
+                  const driveTeam = d.team === 'us' ? team : opp;
+                  return (
+                    <tr key={d.num} className="drive-row" style={{ '--drive-team-color': driveTeam.primary, '--drive-team-ink': readableTeamInk(driveTeam.primary) }}>
+                      <td className="mono">{d.num}</td>
+                      <td><span className="drive-team-cell"><ColorBlock team={driveTeam} size={14} /><span className="mono">{driveTeam.abbr}</span></span></td>
+                      <td className="num mono">{d.yards}</td>
+                      <td className="mono">{d.time}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{formatConcepts(d.concepts)}</td>
+                      <td><ResultChip result={d.result} /></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -745,7 +775,7 @@ function PlayoffHub({ team, teams, season, actions, onNav, playoffRoundGames, pl
     <>
       <Topbar
         crumb={`Season ${season} / Playoffs`}
-        title={championshipDone ? '🏆 Champions Crowned' : `Playoffs · ${roundLabel[nextRound] || 'Complete'}`}
+        title={championshipDone ? <span className="icon-label"><GameIcon name="trophy" size={22} /> Champions Crowned</span> : `Playoffs · ${roundLabel[nextRound] || 'Complete'}`}
         actions={
           !championshipDone && nextRound ? (
             <button className="btn primary" onClick={() => onSimRound(nextRound)}>
@@ -779,7 +809,7 @@ function PlayoffHub({ team, teams, season, actions, onNav, playoffRoundGames, pl
                 <div style={{ font: '700 48px var(--font-display)', color: 'var(--chalk)', lineHeight: 1 }}>
                   {champ?.city} {champ?.name}
                 </div>
-                {isUser && <div style={{ marginTop: 12, font: '700 14px var(--font-stamp)', color: 'var(--neon)', letterSpacing: '0.12em' }}>🏆 YOU WON THE CHAMPIONSHIP!</div>}
+                {isUser && <div className="champion-callout"><GameIcon name="trophy" size={17} /> YOU WON THE CHAMPIONSHIP!</div>}
               </div>
             </div>
           );
@@ -1021,13 +1051,6 @@ function SimPlayField({ team, opp, currentDrive, driveIndex, los, poss }) {
   else if (isRunPlay) playType = 'run';
   else if (isDeep) playType = 'deep';
 
-  let flashText = null, flashClass = '';
-  if (result === 'TD') { flashText = 'TOUCHDOWN'; flashClass = 'sf-flash-td'; }
-  else if (result === 'FG') { flashText = 'FIELD GOAL'; flashClass = 'sf-flash-fg'; }
-  else if (result === 'INT') { flashText = 'INTERCEPTION'; flashClass = 'sf-flash-turn'; }
-  else if (result === 'FUM') { flashText = 'FUMBLE'; flashClass = 'sf-flash-turn'; }
-  else if (result === 'SAF') { flashText = 'SAFETY'; flashClass = 'sf-flash-safe'; }
-
   const ddText = !currentDrive ? 'KICKOFF' :
     result === 'TD' ? 'TOUCHDOWN' :
     result === 'FG' ? '4TH & GOAL' :
@@ -1039,7 +1062,7 @@ function SimPlayField({ team, opp, currentDrive, driveIndex, los, poss }) {
     '1ST & 10';
 
   return (
-    <div className="sf-wrap">
+    <div className="sf-wrap" style={{ '--sf-off': offTeam.primary, '--sf-def': defTeam.primary }}>
       {/* SVG field backdrop */}
       <SimFieldBackdrop teamL={team} teamR={opp} />
 
@@ -1047,6 +1070,13 @@ function SimPlayField({ team, opp, currentDrive, driveIndex, los, poss }) {
       <div className="sf-action" key={driveIndex}>
         {/* Line of scrimmage */}
         <div className="sf-los" style={{ left: `${losX}%` }} />
+        <div className="sf-snap-wave" style={{ left: `${losX}%` }} />
+
+        {currentDrive && (
+          <svg className="sf-play-trail" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">
+            <path pathLength="100" d={`M ${losX} ${playType === 'run' ? 28 : 8} Q ${(losX + endX) / 2} ${playType === 'run' ? 31 : 3} ${endX} ${playType === 'run' ? 25 : 9}`} />
+          </svg>
+        )}
 
         {/* First down marker */}
         {currentDrive && result !== 'TD' && result !== 'FG' && (
@@ -1136,37 +1166,10 @@ function SimPlayField({ team, opp, currentDrive, driveIndex, los, poss }) {
         {/* HUD overlay */}
         <div className="sf-hud">
           <span className="sf-hud-down">{ddText}</span>
-          <span className="sf-hud-poss" style={{ background: offTeam.primary }}>
-            {offTeam.abbr} BALL
-          </span>
+          <span className="sf-hud-poss" style={{ '--poss-color': offTeam.primary }}>{offTeam.abbr} BALL</span>
+          {currentDrive && <span className="sf-hud-concept">{formatConcepts(currentDrive.concepts) || 'Play developing'}</span>}
+          {currentDrive && <strong className={`sf-hud-result ${endYards < 0 ? 'negative' : ''}`}>{endYards > 0 ? '+' : ''}{endYards} YDS · {result}</strong>}
         </div>
-
-        {/* Result flash */}
-        {flashText && (
-          <div className={`sf-flash ${flashClass}`}>
-            <div className="sf-flash-text">{flashText}</div>
-            {result === 'TD' && (
-              <>
-                <div className="sf-flash-sub">{offTeam.abbr} +7</div>
-                <div className="sf-confetti">
-                  {Array.from({ length: 24 }).map((_, i) => (
-                    <span key={i} style={{
-                      '--cx': `${(i * 137) % 100}%`,
-                      '--cd': `${(i * 53) % 600}ms`,
-                      '--cc': i % 3 === 0 ? 'var(--neon)' : i % 3 === 1 ? 'var(--hot)' : 'var(--chalk)',
-                    }} />
-                  ))}
-                </div>
-              </>
-            )}
-            {(result === 'INT' || result === 'FUM') && (
-              <div className="sf-flash-sub">{defTeam.abbr} BALL</div>
-            )}
-            {result === 'FG' && (
-              <div className="sf-flash-sub">{offTeam.abbr} +3</div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

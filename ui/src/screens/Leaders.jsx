@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
+import { useLeague } from '../context/league-context.js';
 import { Topbar, ColorBlock, OvrPill } from '../components/Chrome.jsx';
 
 // ── stat categories ──────────────────────────────────────────────────────────

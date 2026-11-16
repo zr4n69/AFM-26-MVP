@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, Avatar, OvrPill } from '../components/Chrome.jsx';
+import { useLeague } from '../context/league-context.js';
+import { Topbar } from '../components/Chrome.jsx';
 
 const VOTES_PER_TEAM = 2;
 const ELECTION_THRESHOLD = 4;
 
-export function ScreenHallOfFame({ onNav }) {
-  const { userTeam, teams, hallOfFame, season, phase, actions } = useLeague();
+export function ScreenHallOfFame() {
+  const { userTeam, teams, hallOfFame, season, actions } = useLeague();
 
   const [myVotes, setMyVotes] = useState(() => {
     const existing = hallOfFame?.ballotsByTeamId?.[userTeam.id];

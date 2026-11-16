@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, Avatar, OvrPill, Stars, InjBadge, FatigueBar, TraitBadge, TRAIT_ICONS, TRAIT_DESCRIPTIONS, formatM, formatDollars } from '../components/Chrome.jsx';
+import { useLeague } from '../context/league-context.js';
+import { Topbar, Avatar, OvrPill, Stars, InjBadge, FatigueBar, TraitBadge } from '../components/Chrome.jsx';
+import { GameIcon } from '../components/GameIcon.jsx';
+import { formatM, formatDollars } from '../components/formatting.js';
+import { TRAIT_DESCRIPTIONS, TRAIT_ICONS } from '../components/trait-data.js';
 
 const FILTERS = ['All', 'Offense', 'Defense', 'Special Teams', 'Injured'];
 const OFF_POS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C'];
@@ -10,12 +13,12 @@ const ST_POS = ['K', 'P', 'LS'];
 export function ScreenRoster({ onNav }) {
   const { userTeam, actions } = useLeague();
   const team = userTeam;
-  if (!team) return null;
-
   const [filter, setFilter] = useState('All');
   const [sortKey, setSortKey] = useState('ovr');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [cutTarget, setCutTarget] = useState(null);
+
+  if (!team) return null;
 
   function handleRelease(playerId) {
     actions.releasePlayer(team.id, playerId);
@@ -54,7 +57,7 @@ export function ScreenRoster({ onNav }) {
         }
       />
       <div className="page">
-        <div className="grid grid-4" style={{ marginBottom: 18 }}>
+        <div className="grid grid-4 roster-summary">
           <div className="stat-tile">
             <div className="label">Roster Size</div>
             <div className="value">{team.roster.length} <span style={{ font: '700 14px var(--font-display)', color: 'var(--ink-4)' }}>/55</span></div>
@@ -65,7 +68,7 @@ export function ScreenRoster({ onNav }) {
           </div>
           <div className="stat-tile">
             <div className="label">Top OVR</div>
-            <div className="value">{topPlayer?.ovr || '—'}</div>
+            <div className="value value-rating">{topPlayer ? <OvrPill ovr={topPlayer.ovr} className="ovr-featured" /> : '—'}</div>
             <div className="delta">{topPlayer?.name || ''}</div>
           </div>
           <div className="stat-tile">
@@ -76,21 +79,22 @@ export function ScreenRoster({ onNav }) {
         </div>
 
         <div className="card">
-          <div className="card-h" style={{ gap: 16, flexWrap: 'wrap' }}>
-            <div className="tabs" style={{ border: 'none', margin: 0 }}>
+          <div className="card-h roster-controls">
+            <div className="tabs roster-filters">
               {FILTERS.map(f => (
                 <div key={f} className={`tab ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)} style={{ borderBottom: 'none', paddingBottom: 8 }}>{f}</div>
               ))}
             </div>
-            <div className="right" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div className="right roster-sort">
               <span className="muted">Sort:</span>
               {['ovr', 'pos', 'age', 'cap'].map(k => (
                 <span key={k} className={`chip ${sortKey === k ? 'pos' : 'outline'}`} onClick={() => setSortKey(k)} style={{ cursor: 'pointer' }}>{k.toUpperCase()}</span>
               ))}
             </div>
           </div>
-          <div className="card-b tight">
-            <table className="tbl">
+          <div className="card-b tight roster-list-body">
+            <div className="roster-desktop-table">
+              <table className="tbl">
               <thead>
                 <tr>
                   <th>Player</th><th>Pos</th><th className="num">Age</th><th className="num">OVR</th><th>Pot</th>
@@ -119,7 +123,7 @@ export function ScreenRoster({ onNav }) {
                     <td className="muted col-mobile-hide" style={{ fontSize: 11 }} onClick={() => setSelectedPlayer(p)}>
                       {p.traits[0]
                         ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ fontSize: 13 }}>{TRAIT_ICONS[p.traits[0]] || '•'}</span>
+                            <GameIcon name={TRAIT_ICONS[p.traits[0]]} size={13} />
                             {p.traits[0].replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
                           </span>
                         : '—'}
@@ -133,7 +137,35 @@ export function ScreenRoster({ onNav }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
+
+            <div className="roster-mobile-list">
+              {roster.map(p => {
+                const role = p.depth === 0 ? 'Starter' : p.depth === 1 ? 'Second unit' : 'Reserve';
+                const trait = p.traits[0];
+                return (
+                  <article className="roster-mobile-player" key={p.id}>
+                    <button type="button" className="roster-mobile-player-main" onClick={() => setSelectedPlayer(p)}>
+                      <Avatar player={p} team={team} size={46} />
+                      <span className="roster-mobile-identity">
+                        <strong>{p.name}</strong>
+                        <small>{p.pos} · Age {p.age} · {role}</small>
+                      </span>
+                      <span className="roster-mobile-overall"><small>OVR</small><OvrPill ovr={p.ovr} /></span>
+                    </button>
+                    <div className="roster-mobile-facts">
+                      <span className="roster-mobile-potential"><small>Potential</small><Stars n={p.potential} /></span>
+                      <span><small>Cap</small><b>{formatM(p.cap)}</b></span>
+                      <span className="roster-mobile-fatigue"><small>Fatigue</small><FatigueBar value={p.fatigue} /></span>
+                      <span className="roster-mobile-status"><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></span>
+                      {trait && <span className="roster-mobile-trait"><GameIcon name={TRAIT_ICONS[trait]} size={13} /> {trait.replace(/([A-Z])/g, ' $1').replace(/^./, letter => letter.toUpperCase())}</span>}
+                      <button type="button" className="roster-mobile-release" onClick={() => setCutTarget(p)}>Release</button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -201,169 +233,146 @@ function PlayerDetailModal({ player, team, onClose, onRelease }) {
   };
 
   function ratingColor(v) {
-    if (v >= 90) return '#7B2FF7';
-    if (v >= 80) return '#2563EB';
-    if (v >= 70) return '#B8860B';
-    if (v >= 60) return '#6B7280';
-    return '#92400E';
+    if (v >= 90) return '#9c7628';
+    if (v >= 80) return '#3d7555';
+    if (v >= 70) return '#317da0';
+    if (v >= 60) return '#747b76';
+    return '#a44842';
   }
 
+  const depthLabel = p.depth === 0 ? 'Starter' : p.depth === 1 ? 'Second unit' : 'Reserve';
+  const seasonStatEntries = Object.entries(seasonStats).filter(([, value]) => value > 0);
+  const careerStatEntries = Object.entries(careerStats).filter(([, value]) => value > 0);
+
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.5)', display: 'grid', placeItems: 'center' }}
-      onClick={onClose}>
-      <div className="card" style={{ width: '95vw', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', animation: 'fadeIn .15s ease-out' }}
-        onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div style={{
-          padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16,
-          background: `linear-gradient(135deg, ${team.primary} 60%, ${team.secondary} 60%)`,
-          color: 'white', borderRadius: '8px 8px 0 0',
-        }}>
-          <Avatar player={p} team={team} size={56} />
-          <div style={{ flex: 1 }}>
-            <div style={{ font: '700 22px var(--font-display)' }}>{p.name}</div>
-            <div style={{ fontSize: 13, opacity: 0.9 }}>{p.pos} · Age {p.age} · {p.depth === 0 ? 'Starter' : p.depth === 1 ? 'Backup' : 'Depth'}</div>
-            <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {p.traits.length > 0 ? p.traits.map(t => <TraitBadge key={t} trait={t} />) : <span>No special traits</span>}
+    <div className="player-dossier-overlay" onClick={onClose}>
+      <article
+        className="player-dossier"
+        style={{ '--dossier-primary': team.primary, '--dossier-secondary': team.secondary }}
+        onClick={event => event.stopPropagation()}
+        aria-label={`${p.name} personnel dossier`}
+      >
+        <header className="player-dossier-header">
+          {team.logo && <img className="player-dossier-team-mark" src={team.logo} alt="" aria-hidden="true" />}
+          <div className="player-dossier-kicker">Personnel file · {team.city} {team.name}</div>
+          <button className="player-dossier-close" onClick={onClose} aria-label="Close player dossier">×</button>
+          <Avatar player={p} team={team} size={82} />
+          <div className="player-dossier-identity">
+            <h2>{p.name}</h2>
+            <p>{p.pos} · Age {p.age} · {depthLabel}</p>
+            <div className="player-dossier-trait-strip">
+              {p.traits.length > 0 ? p.traits.map(trait => <TraitBadge key={trait} trait={trait} />) : <span>No special traits</span>}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <OvrPill ovr={p.ovr} />
-            <div style={{ marginTop: 8 }}><Stars n={p.potential} /></div>
-          </div>
-        </div>
-
-        <div className="card-b" style={{ padding: '16px 24px' }}>
-          {/* Contract Info */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12, marginBottom: 20, textAlign: 'center' }}>
-            <div><div className="muted" style={{ fontSize: 11 }}>Salary</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.salary)}/yr</div></div>
-            <div><div className="muted" style={{ fontSize: 11 }}>Cap Hit</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.cap)}/yr</div></div>
-            <div><div className="muted" style={{ fontSize: 11 }}>Years Left</div><div style={{ fontWeight: 700 }}>{p.years}</div></div>
-            <div><div className="muted" style={{ fontSize: 11 }}>Guaranteed</div><div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{formatM(p.guaranteed)}</div></div>
-          </div>
-
-          {/* Injury Status */}
-          {p.injStatus && (
-            <div style={{ marginBottom: 16, padding: '10px 14px', background: '#FFF5F5', borderRadius: 6, border: '1px solid #FEE2E2' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} />
-                {p._engine?.health?.injury && (
-                  <span className="muted" style={{ fontSize: 12 }}>{p._engine.health.injury}</span>
-                )}
+          <div className="player-dossier-score" style={{ '--overall-color': ratingColor(p.ovr) }}>
+            <div className="player-overall-hero"><span>OVR</span><strong>{p.ovr}</strong><i>Overall grade</i></div>
+            <div className="player-potential-hero">
+              <span>Potential ceiling</span>
+              <div className="player-potential-meter" aria-label={`${p.potential} of 5 potential`}>
+                {Array.from({ length: 5 }).map((_, index) => <i className={index < p.potential ? 'filled' : ''} key={index} />)}
               </div>
+              <b>{p.potential} / 5</b>
             </div>
-          )}
+          </div>
+        </header>
 
-          {/* Traits */}
-          {p.traits.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <h3 style={{ font: '700 13px var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 10 }}>Traits</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {p.traits.map(t => (
-                  <div key={t} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', background: 'var(--turf-2)', border: '1px solid var(--line-1)', borderRadius: 4 }}>
-                    <span style={{ fontSize: 22, lineHeight: 1 }}>{TRAIT_ICONS[t] || '•'}</span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13, fontFamily: 'var(--font-stamp)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 2 }}>
-                        {t.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--ink-3)', lineHeight: 1.4 }}>
-                        {TRAIT_DESCRIPTIONS[t] || ''}
-                      </div>
+        <div className="player-dossier-body">
+          <aside className="player-dossier-sidebar">
+            <section>
+              <h3>Contract sheet</h3>
+              <dl className="player-contract-grid">
+                <div><dt>Salary</dt><dd>{formatM(p.salary)}<small>/yr</small></dd></div>
+                <div><dt>Cap hit</dt><dd>{formatM(p.cap)}<small>/yr</small></dd></div>
+                <div><dt>Years left</dt><dd>{p.years}</dd></div>
+                <div><dt>Guaranteed</dt><dd>{formatM(p.guaranteed)}</dd></div>
+              </dl>
+            </section>
+
+            {p.injStatus && (
+              <section className="player-injury-note">
+                <h3>Medical status</h3>
+                <div><InjBadge status={p.injStatus} weeksRemaining={p._engine?.health?.weeksRemaining} /></div>
+                {p._engine?.health?.injury && <p>{p._engine.health.injury}</p>}
+              </section>
+            )}
+
+            <section>
+              <h3>Personnel notes</h3>
+              {p.traits.length > 0 ? (
+                <div className="player-trait-notes">
+                  {p.traits.map(trait => (
+                    <div key={trait}>
+                      <GameIcon name={TRAIT_ICONS[trait]} size={20} className="trait-detail-icon" />
+                      <p><strong>{trait.replace(/([A-Z])/g, ' $1').replace(/^./, letter => letter.toUpperCase())}</strong>{TRAIT_DESCRIPTIONS[trait] || ''}</p>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Ratings */}
-          <div style={{ marginBottom: 20 }}>
-            <h3 style={{ font: '700 13px var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 10 }}>Ratings</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
-              {Object.entries(attrs).map(([key, val]) => (
-                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, flex: 1 }}>{ratingLabels[key] || key}</span>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12,
-                    color: ratingColor(val), minWidth: 24, textAlign: 'right',
-                  }}>{val}</span>
-                  <div style={{ width: 60, height: 4, borderRadius: 2, background: 'var(--bg-3)' }}>
-                    <div style={{ width: `${val}%`, height: '100%', borderRadius: 2, background: ratingColor(val) }} />
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              ) : <p className="player-dossier-empty">No special personnel notes.</p>}
+            </section>
+          </aside>
 
-          {/* Season Stats */}
-          {Object.keys(seasonStats).some(k => seasonStats[k] > 0) && (
-            <div style={{ marginBottom: 20 }}>
-              <h3 style={{ font: '700 13px var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 10 }}>Season Stats</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                {Object.entries(seasonStats).filter(([, v]) => v > 0).map(([key, val]) => (
-                  <div key={key} style={{ textAlign: 'center', padding: '8px 0', background: 'var(--bg-2)', borderRadius: 4 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 16 }}>{typeof val === 'number' ? val.toLocaleString() : val}</div>
-                    <div className="muted" style={{ fontSize: 10 }}>{statLabels[key] || key}</div>
+          <main className="player-dossier-evaluation">
+            <section>
+              <div className="player-dossier-section-head"><h3>Scouting grades</h3><span>{Object.keys(attrs).length} attributes</span></div>
+              <div className="player-rating-grid">
+                {Object.entries(attrs).map(([key, value]) => (
+                  <div className="player-rating" key={key} style={{ '--rating-color': ratingColor(value) }}>
+                    <span>{ratingLabels[key] || key}</span>
+                    <b>{value}</b>
+                    <i><em style={{ width: `${value}%` }} /></i>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            </section>
 
-          {/* Career Stats */}
-          {Object.keys(careerStats).some(k => careerStats[k] > 0) && (
-            <div style={{ marginBottom: 20 }}>
-              <h3 style={{ font: '700 13px var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 10 }}>Career Stats</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                {Object.entries(careerStats).filter(([, v]) => v > 0).map(([key, val]) => (
-                  <div key={key} style={{ textAlign: 'center', padding: '8px 0', background: 'var(--bg-2)', borderRadius: 4 }}>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 16 }}>{typeof val === 'number' ? val.toLocaleString() : val}</div>
-                    <div className="muted" style={{ fontSize: 10 }}>{statLabels[key] || key}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+            {seasonStatEntries.length > 0 && (
+              <section>
+                <div className="player-dossier-section-head"><h3>Season production</h3><span>Current season</span></div>
+                <div className="player-stat-grid">
+                  {seasonStatEntries.map(([key, value]) => (
+                    <div key={key}><b>{typeof value === 'number' ? value.toLocaleString() : value}</b><span>{statLabels[key] || key}</span></div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {/* Awards */}
-          {awards.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <h3 style={{ font: '700 13px var(--font-display)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 10 }}>Awards & Honors</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {awards.map((a, i) => {
-                  const awardNames = { mvp: 'MVP', opoy: 'OPOY', dpoy: 'DPOY', offensiveROY: 'Off. ROY', defensiveROY: 'Def. ROY', firstTeamAllPro: '1st Team All-Pro', secondTeamAllPro: '2nd Team All-Pro' };
-                  const label = awardNames[a.awardType] || a.awardType || a.type || a;
-                  return (
-                    <span key={i} className="chip pos" style={{ fontSize: 11 }}>
-                      {label} {a.season ? `(S${a.season})` : ''}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
+            {careerStatEntries.length > 0 && (
+              <section>
+                <div className="player-dossier-section-head"><h3>Career production</h3><span>All seasons</span></div>
+                <div className="player-stat-grid">
+                  {careerStatEntries.map(([key, value]) => (
+                    <div key={key}><b>{typeof value === 'number' ? value.toLocaleString() : value}</b><span>{statLabels[key] || key}</span></div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-          {confirmRelease ? (
-            <div style={{ background: '#FFF5F5', borderRadius: 6, padding: '12px 14px', border: '1px solid #FEE2E2' }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>Release {p.name}?</div>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>
-                Dead money: {formatM(p._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings: {formatM(p._engine?.contract?.releaseImpact?.capSavings ?? 0)}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn" style={{ background: 'var(--neg)', color: 'white', borderColor: 'var(--neg)' }}
-                  onClick={() => onRelease(p.id)}>Confirm Release</button>
-                <button className="btn" onClick={() => setConfirmRelease(false)}>Cancel</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8 }}>
-              <button className="btn" style={{ color: 'var(--neg)', borderColor: 'var(--neg)' }}
-                onClick={() => setConfirmRelease(true)}>Release Player</button>
-              <button className="btn" onClick={onClose}>Close</button>
-            </div>
-          )}
+            {awards.length > 0 && (
+              <section>
+                <div className="player-dossier-section-head"><h3>Awards & honors</h3><span>{awards.length} recorded</span></div>
+                <div className="player-awards">
+                  {awards.map((award, index) => {
+                    const awardNames = { mvp: 'MVP', opoy: 'OPOY', dpoy: 'DPOY', offensiveROY: 'Off. ROY', defensiveROY: 'Def. ROY', firstTeamAllPro: '1st Team All-Pro', secondTeamAllPro: '2nd Team All-Pro' };
+                    const label = awardNames[award.awardType] || award.awardType || award.type || award;
+                    return <span key={index}>{label} {award.season ? `(S${award.season})` : ''}</span>;
+                  })}
+                </div>
+              </section>
+            )}
+          </main>
         </div>
-      </div>
+
+        <footer className={`player-dossier-footer${confirmRelease ? ' confirming' : ''}`}>
+          {confirmRelease ? (
+            <>
+              <div><strong>Release {p.name}?</strong><span>Dead money {formatM(p._engine?.contract?.releaseImpact?.deadMoney ?? 0)} · Cap savings {formatM(p._engine?.contract?.releaseImpact?.capSavings ?? 0)}</span></div>
+              <div><button className="btn danger" onClick={() => onRelease(p.id)}>Confirm Release</button><button className="btn" onClick={() => setConfirmRelease(false)}>Cancel</button></div>
+            </>
+          ) : (
+            <><button className="btn danger-outline" onClick={() => setConfirmRelease(true)}>Release Player</button><button className="btn" onClick={onClose}>Close file</button></>
+          )}
+        </footer>
+      </article>
     </div>
   );
 }

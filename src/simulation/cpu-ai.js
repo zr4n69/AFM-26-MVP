@@ -173,6 +173,7 @@ export function convertProspectToPlayer(league, prospect, teamId, rng) {
 
   const nearCeiling = overall >= ceiling - 2;
 
+  const draftPick = league.draft?.picks?.find((pick) => pick.id === prospect.draftPickId || pick.prospectId === prospect.id);
   return {
     id: prospect.id,
     firstName: prospect.firstName,
@@ -194,6 +195,14 @@ export function convertProspectToPlayer(league, prospect, teamId, rng) {
     stats: emptyStats(),
     careerStats: emptyStats(),
     awards: [],
+    origin: draftPick ? {
+      type: "draft",
+      season: league.currentSeason,
+      teamId,
+      round: draftPick.round,
+      overallPick: draftPick.overallPick ?? draftPick.pickNumber
+    } : { type: "undrafted", season: league.currentSeason },
+    championships: [],
     freeAgentSeasonsUnsigned: 0
   };
 }

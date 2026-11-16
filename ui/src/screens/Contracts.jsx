@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
-import { Topbar, Avatar, OvrPill, Stars, formatM } from '../components/Chrome.jsx';
+import { useLeague } from '../context/league-context.js';
+import { Topbar, Avatar, OvrPill, Stars } from '../components/Chrome.jsx';
+import { formatM } from '../components/formatting.js';
 import { estimateMarketSalary } from '@engine/simulation/free-agency.js';
 
 export function ScreenContracts({ onNav }) {
-  const { userTeam, actions, phase } = useLeague();
+  const { userTeam, actions } = useLeague();
   const team = userTeam;
   const [extTarget, setExtTarget] = useState(null);
   const [extSalary, setExtSalary] = useState(3);
@@ -57,13 +58,13 @@ export function ScreenContracts({ onNav }) {
           </div>
         </div>
 
-        <div className="grid grid-3-2">
+        <div className="grid grid-3-2 contracts-layout">
           <div className="card">
             <div className="card-h">
               <h2>Top Cap Hits</h2>
               <span className="right">{top10.length} of {team.roster.length}</span>
             </div>
-            <div className="card-b tight">
+            <div className="card-b tight contracts-cap-table">
               <table className="tbl">
                 <thead>
                   <tr>
@@ -128,17 +129,20 @@ export function ScreenContracts({ onNav }) {
                 {eligible.map(p => {
                   const market = estimateMarketSalary(p._engine) / 1_000_000;
                   return (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--line-soft)' }}>
+                    <div key={p.id} className="contract-extension-row">
                       <Avatar player={p} team={team} size={28} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600 }}>{p.name}</div>
-                        <div className="muted" style={{ fontSize: 11 }}>{p.pos} · {p.years}y left · {formatM(p.cap)}/yr · est. {formatM(market)}/yr</div>
+                      <div className="contract-extension-copy">
+                        <strong>{p.name}</strong>
+                        <span>{p.pos} · {p.years}y left</span>
+                        <small>{formatM(p.cap)}/yr · est. {formatM(market)}/yr</small>
                       </div>
-                      <OvrPill ovr={p.ovr} />
-                      <button className="btn" style={{ padding: '4px 12px', fontSize: 11 }}
-                        onClick={() => { setExtTarget(p); setExtSalary(Math.round(market * 10) / 10); setExtYears(3); setExtResult(null); }}>
-                        Extend
-                      </button>
+                      <div className="contract-extension-actions">
+                        <OvrPill ovr={p.ovr} />
+                        <button className="btn sm"
+                          onClick={() => { setExtTarget(p); setExtSalary(Math.round(market * 10) / 10); setExtYears(3); setExtResult(null); }}>
+                          Extend
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -179,12 +183,12 @@ export function ScreenContracts({ onNav }) {
 
         {/* Extension modal */}
         {extTarget && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(14,17,22,0.45)', display: 'grid', placeItems: 'center' }}
+          <div className="contract-modal-backdrop"
             onClick={() => setExtTarget(null)}>
-            <div className="card" style={{ width: 420, animation: 'fadeIn .15s ease-out' }} onClick={e => e.stopPropagation()}>
+            <div className="card contract-extension-modal" onClick={e => e.stopPropagation()}>
               <div className="card-h"><h2>Extend {extTarget.name}</h2></div>
               <div className="card-b">
-                <div style={{ display: 'flex', gap: 12, marginBottom: 16, fontSize: 13 }}>
+                <div className="contract-modal-player">
                   <span className="mono">{extTarget.pos}</span>
                   <span>Age {extTarget.age}</span>
                   <OvrPill ovr={extTarget.ovr} />
@@ -200,7 +204,7 @@ export function ScreenContracts({ onNav }) {
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4 }}>Contract Length</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div className="contract-year-options">
                     {[1, 2, 3, 4, 5].map(y => (
                       <span key={y} className={`chip ${extYears === y ? 'pos' : 'outline'}`}
                         style={{ cursor: 'pointer', padding: '4px 12px' }}

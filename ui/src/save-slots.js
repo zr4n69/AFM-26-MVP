@@ -1,6 +1,40 @@
-const SAVE_VERSION = 1;
+import { TEAM_IDENTITIES } from '../../src/data/team-identities.js';
+
+const SAVE_VERSION = 2;
 const MAX_SLOTS = 3;
 const STORAGE_PREFIX = "afm26_save_slot_";
+const TEAM_NICKNAME_BY_CITY = Object.freeze(Object.fromEntries(TEAM_IDENTITIES.map(team => [team.city, team.nickname])));
+
+function migrateTeamBranding(league) {
+  for (const team of league?.teams || []) {
+    const nickname = TEAM_NICKNAME_BY_CITY[team.city];
+    if (!nickname) continue;
+    team.nickname = nickname;
+    team.name = `${team.city} ${nickname}`;
+  }
+  return league;
+}
+
+function migrateCareerProfiles(league) {
+  const team = league?.teams?.find((entry) => entry.isPlayerControlled);
+  league.coach ||= {
+    firstName: 'Alex', lastName: 'Morgan', portraitIndex: 0,
+    title: 'Head Coach & General Manager', trackingStartSeason: league.currentSeason || 1,
+    seasonLedger: [], honors: [],
+    frontOffice: { draftSelections: 0, firstRoundPicks: 0, tradesCompleted: 0, freeAgentSignings: 0 }
+  };
+  league.coach.trackingStartSeason ||= league.currentSeason || 1;
+  league.coach.seasonLedger ||= [];
+  league.coach.honors ||= [];
+  league.coach.frontOffice ||= { draftSelections: 0, firstRoundPicks: 0, tradesCompleted: 0, freeAgentSignings: 0 };
+  for (const player of [...(league.freeAgents || []), ...(league.teams || []).flatMap((entry) => entry.roster || [])]) {
+    player.origin ||= { type: 'preCareer' };
+    player.championships ||= [];
+    player.achievementTrackingStartSeason ||= league.currentSeason || 1;
+  }
+  if (team && !Number.isFinite(league.coach.portraitIndex)) league.coach.portraitIndex = 0;
+  return league;
+}
 
 function slotKey(slotIndex) {
   if (slotIndex < 0 || slotIndex >= MAX_SLOTS) {
@@ -17,12 +51,13 @@ export function listSaveSlots() {
       try {
         const snapshot = JSON.parse(raw);
         const team = snapshot.league?.teams?.find((t) => t.isPlayerControlled);
+        const currentNickname = TEAM_NICKNAME_BY_CITY[team?.city];
         slots.push({
           slotIndex: i,
           occupied: true,
           savedAt: snapshot.savedAt,
           reason: snapshot.reason,
-          teamName: team?.name ?? "Unknown Team",
+          teamName: team ? `${team.city} ${currentNickname || team.nickname}` : "Unknown Team",
           season: snapshot.league?.currentSeason ?? 1,
           phase: snapshot.league?.phase ?? "preseason",
           record: team
@@ -71,7 +106,7 @@ export function saveToSlot(league, slotIndex, reason = "manual") {
   try {
     cloned = structuredClone(league);
   } catch (e) {
-    throw new Error(`Save failed: could not clone state — ${e.message}`);
+    throw new Error(`Save failed: could not clone state — ${e.message}`, { cause: e });
   }
   pruneLeagueForStorage(cloned);
   const snapshot = {
@@ -84,7 +119,7 @@ export function saveToSlot(league, slotIndex, reason = "manual") {
     localStorage.setItem(slotKey(slotIndex), JSON.stringify(snapshot));
   } catch (e) {
     if (e instanceof DOMException && e.name === 'QuotaExceededError') {
-      throw new Error('Save failed: storage quota exceeded. Try deleting another save slot.');
+      throw new Error('Save failed: storage quota exceeded. Try deleting another save slot.', { cause: e });
     }
     throw e;
   }
@@ -95,7 +130,7 @@ export function loadFromSlot(slotIndex) {
   const raw = localStorage.getItem(slotKey(slotIndex));
   if (!raw) throw new Error(`Save slot ${slotIndex} is empty.`);
   const snapshot = JSON.parse(raw);
-  if (snapshot.version !== SAVE_VERSION || !snapshot.league) {
+  if (![1, SAVE_VERSION].includes(snapshot.version) || !snapshot.league) {
     throw new Error(`Unsupported save format in slot ${slotIndex}.`);
   }
   const league = snapshot.league;
@@ -103,7 +138,7 @@ export function loadFromSlot(slotIndex) {
   if (!Array.isArray(league.teams) || typeof league.currentSeason !== 'number') {
     throw new Error(`Save slot ${slotIndex} contains invalid data.`);
   }
-  return league;
+  return migrateCareerProfiles(migrateTeamBranding(league));
 }
 
 export function deleteSlot(slotIndex) {

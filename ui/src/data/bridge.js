@@ -2,30 +2,28 @@ import { OFFENSIVE_STARTERS, DEFENSIVE_STARTERS, getSchemeStarters } from '@engi
 
 const OFF_POSITIONS = ['QB', 'RB', 'WR', 'TE', 'OT', 'OG', 'C'];
 const DEF_POSITIONS = ['EDGE', 'DL', 'LB', 'CB', 'S'];
-const ST_POSITIONS = ['K', 'P', 'RET'];
-
 const BASE = import.meta.env.BASE_URL;
 
 const TEAM_VISUALS = {
-  'Florida Buccaneers':   { abbr: 'FLA', conf: 'West',  primary: '#A8322B', secondary: '#5A5754', tertiary: '#7A4B2A', logo: `${BASE}logos/FLA.png` },
-  'Austin Founders':      { abbr: 'AUS', conf: 'East',  primary: '#D9C9A8', secondary: '#1B3A6B', tertiary: '#A8A8AC', logo: `${BASE}logos/AUS.png` },
-  'Columbus Rockets':     { abbr: 'COL', conf: 'East',  primary: '#E8631A', secondary: '#6B6F76', tertiary: '#F4F4F4', logo: `${BASE}logos/COL.png` },
-  'Sacramento Miners':    { abbr: 'SAC', conf: 'West',  primary: '#0B0B12', secondary: '#7A4B2A', tertiary: '#D4AF37', logo: `${BASE}logos/SAC.png` },
-  'Orlando Pilots':       { abbr: 'ORL', conf: 'West',  primary: '#123D2B', secondary: '#F4F4F4', tertiary: '#89BFA4', logo: `${BASE}logos/ORL.png` },
-  'Memphis Kings':        { abbr: 'MEM', conf: 'West',  primary: '#0E0E10', secondary: '#7B3FA7', tertiary: '#D4AF37', logo: `${BASE}logos/MEM.png` },
-  'Omaha Steel':          { abbr: 'OMA', conf: 'North', primary: '#161719', secondary: '#E15A2A', tertiary: '#8A8F94', logo: `${BASE}logos/OMA.png` },
-  'Raleigh Redwoods':     { abbr: 'RAL', conf: 'North', primary: '#123D2B', secondary: '#1A7A78', tertiary: '#A8D8C8', logo: `${BASE}logos/RAL.png` },
-  'Salt Lake Summit':     { abbr: 'SLC', conf: 'North', primary: '#0E0E10', secondary: '#E8C547', tertiary: '#C0392B', logo: `${BASE}logos/SLC.png` },
-  'Milwaukee Harbors':    { abbr: 'MIL', conf: 'North', primary: '#0E3145', secondary: '#22BBD6', tertiary: '#F4F4F4', logo: `${BASE}logos/MIL.png` },
-  'San Antonio Marshals': { abbr: 'SA',  conf: 'East',  primary: '#13294B', secondary: '#A8322B', tertiary: '#F4F4F4', logo: `${BASE}logos/SA.png`  },
-  'Louisville Saints':    { abbr: 'LOU', conf: 'East',  primary: '#F4F4F4', secondary: '#111111', tertiary: '#D4AF37', logo: `${BASE}logos/LOU.png` },
-  'Boise Tigers':         { abbr: 'BOI', conf: 'South', primary: '#0B1F3A', secondary: '#E8851A', tertiary: '#F4F4F4', logo: `${BASE}logos/BOI.png` },
-  'Colorado Vulcans':     { abbr: 'CO',  conf: 'South', primary: '#2D3033', secondary: '#8A8F94', tertiary: '#E15A2A', logo: `${BASE}logos/CO.png`  },
-  'Albuquerque Rogues':   { abbr: 'ALB', conf: 'South', primary: '#0B0B0D', secondary: '#7A4B2A', tertiary: '#C0392B', logo: `${BASE}logos/ALB.png` },
-  'Providence Anchors':   { abbr: 'PRO', conf: 'South', primary: '#2F5233', secondary: '#F4F4F4', tertiary: '#E8C547', logo: `${BASE}logos/PRO.png` },
+  'Florida Corsairs':         { abbr: 'FLA', conf: 'West',  primary: '#A8322B', secondary: '#5A5754', tertiary: '#7A4B2A', logo: `${BASE}logos-franchise-v3/FLA.png` },
+  'Austin Vanguard':          { abbr: 'AUS', conf: 'East',  primary: '#D9C9A8', secondary: '#1B3A6B', tertiary: '#A8A8AC', logo: `${BASE}logos-franchise-v3/AUS.png` },
+  'Columbus Rockets':         { abbr: 'COL', conf: 'East',  primary: '#E8631A', secondary: '#6B6F76', tertiary: '#F4F4F4', logo: `${BASE}logos-franchise-v3/COL.png` },
+  'Sacramento Prospectors':   { abbr: 'SAC', conf: 'West',  primary: '#0B0B12', secondary: '#7A4B2A', tertiary: '#D4AF37', logo: `${BASE}logos-franchise-v3/SAC.png` },
+  'Orlando Flight':           { abbr: 'ORL', conf: 'West',  primary: '#123D2B', secondary: '#F4F4F4', tertiary: '#89BFA4', logo: `${BASE}logos-franchise-v3/ORL.png` },
+  'Memphis Crowns':           { abbr: 'MEM', conf: 'West',  primary: '#0E0E10', secondary: '#7B3FA7', tertiary: '#D4AF37', logo: `${BASE}logos-franchise-v3/MEM.png` },
+  'Omaha Forge':              { abbr: 'OMA', conf: 'North', primary: '#161719', secondary: '#E15A2A', tertiary: '#8A8F94', logo: `${BASE}logos-franchise-v3/OMA.png` },
+  'Raleigh Oakguard':         { abbr: 'RAL', conf: 'North', primary: '#123D2B', secondary: '#1A7A78', tertiary: '#A8D8C8', logo: `${BASE}logos-franchise-v3/RAL.png` },
+  'Salt Lake Summit':         { abbr: 'SLC', conf: 'North', primary: '#0E0E10', secondary: '#E8C547', tertiary: '#C0392B', logo: `${BASE}logos-franchise-v3/SLC.png` },
+  'Milwaukee Breakers':       { abbr: 'MIL', conf: 'North', primary: '#0E3145', secondary: '#22BBD6', tertiary: '#F4F4F4', logo: `${BASE}logos-franchise-v3/MIL.png` },
+  'San Antonio Marshals':     { abbr: 'SA',  conf: 'East',  primary: '#13294B', secondary: '#A8322B', tertiary: '#F4F4F4', logo: `${BASE}logos-franchise-v3/SA.png`  },
+  'Louisville Thoroughbreds': { abbr: 'LOU', conf: 'East',  primary: '#F4F4F4', secondary: '#111111', tertiary: '#D4AF37', logo: `${BASE}logos-franchise-v3/LOU.png` },
+  'Boise Ridgecats':          { abbr: 'BOI', conf: 'South', primary: '#0B1F3A', secondary: '#E8851A', tertiary: '#F4F4F4', logo: `${BASE}logos-franchise-v3/BOI.png` },
+  'Colorado Bighorns':        { abbr: 'CO',  conf: 'South', primary: '#2D3033', secondary: '#8A8F94', tertiary: '#E15A2A', logo: `${BASE}logos-franchise-v3/CO.png`  },
+  'Albuquerque Outriders':    { abbr: 'ALB', conf: 'South', primary: '#0B0B0D', secondary: '#7A4B2A', tertiary: '#C0392B', logo: `${BASE}logos-franchise-v3/ALB.png` },
+  'Providence Ironclads':     { abbr: 'PRO', conf: 'South', primary: '#2F5233', secondary: '#F4F4F4', tertiary: '#E8C547', logo: `${BASE}logos-franchise-v3/PRO.png` },
 };
 
-export function bridgeTeam(engineTeam, league) {
+export function bridgeTeam(engineTeam) {
   if (!engineTeam) return { id: null, city: '', name: '', fullName: '', abbr: '???', conf: '', primary: '#333', secondary: '#999', tertiary: '#ccc', logo: null, roster: [], w: 0, l: 0, tie: 0, pf: 0, pa: 0, pct: 0, diff: 0, cap: 150, payroll: 0, capSpace: 150, ovr: 0, offRating: 0, defRating: 0, strategy: {}, storylines: [], rosterNeeds: {}, morale: 50, moraleNotes: [], _engine: {} };
   const visual = TEAM_VISUALS[engineTeam.name] || {};
   const roster = (engineTeam.roster || []).map(p => bridgePlayer(p, engineTeam));
@@ -257,6 +255,7 @@ export function bridgeLeague(league) {
     season: league.currentSeason,
     week: league.currentWeek,
     phase: league.phase,
+    coach: league.coach,
     training: league.training,
     scouting: league.scouting,
     draft: league.draft,

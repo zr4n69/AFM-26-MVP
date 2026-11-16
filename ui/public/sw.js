@@ -1,15 +1,21 @@
-const CACHE_NAME = 'afm26-v1';
+const CACHE_NAME = 'afm26-v2';
+const APP_BASE = new URL('./', self.location.href);
+const APP_SHELL_URL = APP_BASE.href;
+const ASSETS_PATH = new URL('assets/', APP_BASE).pathname;
+const scopedUrl = (path) => new URL(path, APP_BASE).href;
 
 // Install: cache the shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
-        '/',
-        '/index.html',
-        '/manifest.json',
-        '/icons/icon-192.svg',
-        '/icons/icon-512.svg',
+        scopedUrl('./'),
+        scopedUrl('index.html'),
+        scopedUrl('manifest.json'),
+        scopedUrl('brand/afm-mark.svg'),
+        scopedUrl('brand/afm-wordmark.svg'),
+        scopedUrl('icons/afm-icon-192.png'),
+        scopedUrl('icons/afm-icon-512.png'),
       ]);
     })
   );
@@ -33,9 +39,10 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET and chrome-extension requests
   if (event.request.method !== 'GET') return;
   if (url.protocol === 'chrome-extension:') return;
+  if (url.origin !== self.location.origin) return;
 
   // For navigation requests and JS/CSS: network first, fall back to cache
-  if (event.request.mode === 'navigate' || url.pathname.startsWith('/assets/')) {
+  if (event.request.mode === 'navigate' || url.pathname.startsWith(ASSETS_PATH)) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
@@ -45,7 +52,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => caches.match(event.request).then((r) => r || caches.match('/')))
+        .catch(() => caches.match(event.request).then((r) => r || caches.match(APP_SHELL_URL)))
     );
     return;
   }

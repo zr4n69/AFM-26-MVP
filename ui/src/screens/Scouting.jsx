@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useLeague } from '../context/LeagueContext.jsx';
+import { useLeague } from '../context/league-context.js';
 import { Topbar, Stars, OvrPill } from '../components/Chrome.jsx';
 import { bridgeProspect } from '../data/bridge.js';
+import { PlayerDossier } from '../components/PlayerDossier.jsx';
 
 const POSITION_GROUPS = [
   { id: 'QB',   label: 'Quarterbacks' },
@@ -21,7 +22,7 @@ const SCOUT_TIERS = [
   { level: 'deep',     cost: 6, label: 'Deep',     reveals: 'OVR + traits + potential stars' },
 ];
 
-export function ScreenScouting({ onNav }) {
+export function ScreenScouting() {
   const { userTeam, scouting, draftClass, actions, _engine } = useLeague();
   const league = _engine;
 
@@ -30,6 +31,7 @@ export function ScreenScouting({ onNav }) {
   const revealed = scouting?.revealedGroupsByTeamId?.[teamId] || {};
   const [posFilter, setPosFilter] = useState('All');
   const [scoutResult, setScoutResult] = useState(null);
+  const [profileProspect, setProfileProspect] = useState(null);
 
   function scoutGroup(group, spend) {
     try {
@@ -180,7 +182,7 @@ export function ScreenScouting({ onNav }) {
                   {filteredProspects.slice(0, 50).map(p => {
                     const rl = revealChip(p.revealLevel);
                     return (
-                      <tr key={p.id}>
+                      <tr key={p.id} className="clickable-row" onClick={() => setProfileProspect(p)}>
                         <td className="num mono">{p.projRank}</td>
                         <td><strong>{p.name}</strong></td>
                         <td className="mono">{p.pos}</td>
@@ -191,9 +193,9 @@ export function ScreenScouting({ onNav }) {
                         </td>
                         <td className="num">{p.ovr != null ? <OvrPill ovr={p.ovr} /> : <span className="muted">?</span>}</td>
                         <td className="muted" style={{ fontSize: 11 }}>
-                          {p.traits ? (p.traits.length > 0 ? p.traits.map(t => t.name || t).slice(0, 2).join(', ') : 'None') : '—'}
+                          {p.traits ? (p.traits.length > 0 ? p.traits.map(t => t.name || t).slice(0, 2).join(', ') : 'None') : '?'}
                         </td>
-                        <td>{p.potential != null ? <Stars n={p.potential} /> : <span className="muted">—</span>}</td>
+                        <td>{p.potential != null ? <Stars n={p.potential} /> : <span className="muted">?/5</span>}</td>
                         <td><span className={`chip ${rl.cls}`} style={{ fontSize: 9 }}>{rl.text}</span></td>
                       </tr>
                     );
@@ -215,6 +217,7 @@ export function ScreenScouting({ onNav }) {
             ))}
           </div>
         </div>
+        {profileProspect && <PlayerDossier player={profileProspect} team={userTeam} prospect onClose={() => setProfileProspect(null)} primaryLabel="Add to board" primaryAction={() => { const board = userTeam._engine?.mockDraftBoard || []; if (!board.includes(profileProspect.id)) actions.updateMockDraftBoard([...board, profileProspect.id]); setProfileProspect(null); }} />}
       </div>
     </>
   );
