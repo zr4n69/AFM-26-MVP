@@ -172,6 +172,11 @@ export function bridgeProspect(prospect, revealedGroups) {
     ratingRange: range,
     projRank: prospect.expectedDraftPosition,
     combine: prospect.combineResults,
+    collegeProduction: prospect.collegeProduction ? {
+      games: prospect.collegeProduction.games,
+      allConference: !!prospect.collegeProduction.allConference,
+      awards: prospect.collegeProduction.awards || []
+    } : null,
     combineRank: prospect.combineRank,
     drafted: !!prospect.draftedByTeamId,
     // Revealed at surface+
@@ -208,6 +213,10 @@ export function bridgeFreeAgent(player) {
     age: player.age,
     ovr: player.overall,
     potential: player.potentialStars,
+    attrs: player.ratings || {},
+    years: player.contract?.yearsRemaining || 0,
+    salary: (player.contract?.salary || 0) / 1_000_000,
+    cap: (player.contract?.capHit || 0) / 1_000_000,
     traits: (player.traits || []).map(t => t.name || t),
     injStatus: player.health?.status === 'healthy' ? null : player.health?.status?.[0]?.toUpperCase(),
     careerStats: player.careerStats || {},

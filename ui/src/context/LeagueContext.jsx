@@ -171,6 +171,8 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
     },
     resolveOffers(options) {
       const result = resolvePendingOffers(league, options);
+      const userId = league.teams.find(t => t.isPlayerControlled)?.id;
+      incrementCoach(league, 'freeAgentSignings', result.signings.filter(signing => signing.teamId === userId).length);
       bump();
       return result;
     },
@@ -277,6 +279,8 @@ export function LeagueProvider({ children, initialLeague = null, seed = 'afm26-m
       try {
         const pending = resolvePendingOffers(league, { seed: `player-fa-${league.seed}-${league.currentSeason}` });
         const cpu = runFreeAgencyPeriod(league, { seed: `cpu-fa-${league.seed}-${league.currentSeason}` });
+        const userId = league.teams.find(t => t.isPlayerControlled)?.id;
+        incrementCoach(league, 'freeAgentSignings', [...pending.signings, ...cpu.signings].filter(signing => signing.teamId === userId).length);
         markFreeAgencyComplete(league);
         bump();
         return { pending, cpu };

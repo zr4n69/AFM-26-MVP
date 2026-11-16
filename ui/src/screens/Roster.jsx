@@ -211,6 +211,8 @@ function PlayerDetailModal({ player, team, onClose, onRelease }) {
   const careerStats = p.careerStats || {};
   const seasonStats = p._engine?.stats || {};
   const awards = p._engine?.awards || [];
+  const championships = p._engine?.championships || [];
+  const origin = p._engine?.origin;
   const [confirmRelease, setConfirmRelease] = useState(false);
 
   const ratingLabels = {
@@ -347,15 +349,17 @@ function PlayerDetailModal({ player, team, onClose, onRelease }) {
               </section>
             )}
 
-            {awards.length > 0 && (
+            {(awards.length > 0 || championships.length > 0 || origin) && (
               <section>
-                <div className="player-dossier-section-head"><h3>Awards & honors</h3><span>{awards.length} recorded</span></div>
+                <div className="player-dossier-section-head"><h3>Career file</h3><span>{awards.length + championships.length} honors</span></div>
                 <div className="player-awards">
+                  <span>{origin?.type === 'draft' ? `Drafted R${origin.round}, Pick ${origin.overallPick || '—'} (S${origin.season})` : origin?.type === 'undrafted' ? `Undrafted free agent (S${origin.season})` : 'Pre-career player'}</span>
                   {awards.map((award, index) => {
                     const awardNames = { mvp: 'MVP', opoy: 'OPOY', dpoy: 'DPOY', offensiveROY: 'Off. ROY', defensiveROY: 'Def. ROY', firstTeamAllPro: '1st Team All-Pro', secondTeamAllPro: '2nd Team All-Pro' };
                     const label = awardNames[award.awardType] || award.awardType || award.type || award;
                     return <span key={index}>{label} {award.season ? `(S${award.season})` : ''}</span>;
                   })}
+                  {championships.map((ring, index) => <span key={`ring-${index}`}>League Champion (S{ring.season})</span>)}
                 </div>
               </section>
             )}

@@ -10,7 +10,7 @@ function ratingColor(value) {
 
 export function PlayerDossier({ player, team, prospect = false, onClose, primaryAction, primaryLabel, secondaryAction, secondaryLabel, trackingStartSeason }) {
   if (!player) return null;
-  const engine = player._engine || {};
+  const engine = prospect ? {} : (player._engine || {});
   const traits = player.traits;
   const attrs = prospect ? {} : (player.attrs || engine.ratings || {});
   const seasonStats = engine.stats || player.stats || {};
@@ -34,7 +34,7 @@ export function PlayerDossier({ player, team, prospect = false, onClose, primary
       </header>
       <div className="player-dossier-body">
         <aside className="player-dossier-sidebar">
-          {prospect ? <><section><h3>Known production</h3><p>{engine.collegeProduction || player.collegeProduction || player.college || 'College production filed with league scouting.'}</p></section><section><h3>Combine card</h3><dl className="player-contract-grid">{Object.entries(player.combine || {}).map(([key, value]) => <div key={key}><dt>{key.replace(/([A-Z])/g, ' $1')}</dt><dd>{value}</dd></div>)}</dl></section></> : <section><h3>Contract sheet</h3><dl className="player-contract-grid"><div><dt>Salary</dt><dd>{formatM(player.salary || 0)}<small>/yr</small></dd></div><div><dt>Cap hit</dt><dd>{formatM(player.cap || 0)}<small>/yr</small></dd></div><div><dt>Years left</dt><dd>{player.years ?? 0}</dd></div><div><dt>Status</dt><dd><InjBadge status={player.injStatus} /></dd></div></dl></section>}
+          {prospect ? <><section><h3>Known production</h3><p>{player.collegeProduction ? `${player.collegeProduction.games || 0} college games${player.collegeProduction.allConference ? ' · All-Conference' : ''}${player.collegeProduction.awards?.length ? ` · ${player.collegeProduction.awards.join(', ')}` : ''}` : player.college || 'College production filed with league scouting.'}</p></section><section><h3>Combine card</h3><dl className="player-contract-grid">{Object.entries(player.combine || {}).map(([key, value]) => <div key={key}><dt>{key.replace(/([A-Z])/g, ' $1')}</dt><dd>{value}</dd></div>)}</dl></section></> : <section><h3>Contract sheet</h3><dl className="player-contract-grid"><div><dt>Salary</dt><dd>{formatM(player.salary || 0)}<small>/yr</small></dd></div><div><dt>Cap hit</dt><dd>{formatM(player.cap || 0)}<small>/yr</small></dd></div><div><dt>Years left</dt><dd>{player.years ?? 0}</dd></div><div><dt>Status</dt><dd><InjBadge status={player.injStatus} /></dd></div></dl></section>}
           <section><h3>Career file</h3><p>{origin?.type === 'draft' ? `Drafted Round ${origin.round}, Pick ${origin.overallPick || '—'} · Season ${origin.season}` : origin?.type === 'undrafted' ? `Undrafted free agent · Season ${origin.season}` : 'Pre-career player'}</p>{trackingStartSeason && <small>Achievements tracked since Season {trackingStartSeason}</small>}</section>
         </aside>
         <main className="player-dossier-evaluation">
